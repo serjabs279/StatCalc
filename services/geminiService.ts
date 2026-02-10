@@ -183,6 +183,23 @@ export const analyzeCorrelation = async (
       State ${h0}, ${h1}, and decision based on 2-tailed p-value.
       ### 3. Advanced Analytical Framework
       Descriptive characterization and theoretical implication.
+
+      IMPORTANT: Do this when analyzing
+      ###1. DO NOT ADD jargons and do not use figurative language
+      ###2. follow the conditions below:
+          CONDITIONS:
+                                      You must analyze the data using exactly these 4 systematic stages—ensure these are emphasized and clearly distinct:
+                      1. DESCRIPTIVE CHARACTERIZATION
+                      2. INFERENTIAL ASSESSMENT
+                      3. CONTEXTUAL SYNTHESIS
+                      4. EVALUATIVE CRITIQUE
+
+                      STRICT RESEARCH PROTOCOL:
+                      - NO PERSONAL PRONOUNS: In formal research, there is no "I," "me," "my," "we," "us," or "you."
+                      - LABELING: Always refer to the parties involved as "the researcher(s)" or "the respondent(s)."
+                      - HUMANIZED TONE: Avoid "perfect" bot-like AI prose. Make it sound like a busy, real-life researcher wrote it. A natural flow is better than "gratified" proper grammar. If there's a slight sentence construction quirk, that's fine—it adds to the human feel.
+                      - NO AI CLICHÉS: Do not start with "In conclusion" or "Overall." Just dive into the analysis.
+
     `;
 
     const response = await ai.models.generateContent({
