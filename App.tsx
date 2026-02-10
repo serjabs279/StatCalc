@@ -1,10 +1,55 @@
-
-import React, { useState } from 'react';
-import { Calculator, BarChart3, TrendingUp, Sigma, ArrowRight } from 'lucide-react';
+import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
+import { Calculator, BarChart3, TrendingUp, Sigma, ArrowRight, AlertTriangle } from 'lucide-react';
 import { ViewState } from './types';
 import CorrelationView from './components/views/CorrelationView';
 import AnovaView from './components/views/AnovaView';
 import DescriptiveView from './components/views/DescriptiveView';
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean, error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("Uncaught error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4 font-sans">
+          <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-200 max-w-md w-full text-center">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+               <AlertTriangle className="w-8 h-8" />
+            </div>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Something went wrong</h2>
+            <p className="text-slate-600 mb-6 text-sm leading-relaxed">
+              The application encountered an unexpected error. This is often due to a missing API key or a momentary glitch.
+            </p>
+            {this.state.error && (
+              <div className="text-xs text-left bg-slate-100 p-4 rounded-lg mb-6 overflow-auto max-h-40 border border-slate-200 font-mono text-red-600">
+                {this.state.error.toString()}
+              </div>
+            )}
+            <button 
+              onClick={() => window.location.reload()} 
+              className="px-6 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-lg hover:bg-indigo-700 transition-colors shadow-sm w-full"
+            >
+              Reload Application
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 function App() {
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
@@ -19,50 +64,52 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans">
-      {/* Global Header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm/50 backdrop-blur-md bg-white/90">
-        <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
-          <button 
-            onClick={() => setCurrentView('dashboard')}
-            className="flex items-center gap-2 group outline-none"
-          >
-            <div className={`p-2 rounded-lg transition-colors ${currentView === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-600'}`}>
-              <Calculator className="w-5 h-5" />
-            </div>
-            <div className="flex flex-col items-start">
-              <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent leading-tight">
-                StatSuite
-              </h1>
-              {currentView !== 'dashboard' && (
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  {currentView === 'correlation' ? 'Correlation' : currentView === 'anova' ? 'ANOVA' : 'Descriptives'}
-                </span>
-              )}
-            </div>
-          </button>
-          
-          {currentView !== 'dashboard' && (
-             <button 
-               onClick={() => setCurrentView('dashboard')}
-               className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
-             >
-               Back to Dashboard
-             </button>
-          )}
-        </div>
-      </header>
+    <ErrorBoundary>
+      <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 font-sans">
+        {/* Global Header */}
+        <header className="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm/50 backdrop-blur-md bg-white/90">
+          <div className="max-w-[1600px] mx-auto px-6 h-16 flex items-center justify-between">
+            <button 
+              onClick={() => setCurrentView('dashboard')}
+              className="flex items-center gap-2 group outline-none"
+            >
+              <div className={`p-2 rounded-lg transition-colors ${currentView === 'dashboard' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 group-hover:bg-indigo-100 group-hover:text-indigo-600'}`}>
+                <Calculator className="w-5 h-5" />
+              </div>
+              <div className="flex flex-col items-start">
+                <h1 className="text-lg font-bold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent leading-tight">
+                  StatSuite
+                </h1>
+                {currentView !== 'dashboard' && (
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    {currentView === 'correlation' ? 'Correlation' : currentView === 'anova' ? 'ANOVA' : 'Descriptives'}
+                  </span>
+                )}
+              </div>
+            </button>
+            
+            {currentView !== 'dashboard' && (
+               <button 
+                 onClick={() => setCurrentView('dashboard')}
+                 className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
+               >
+                 Back to Dashboard
+               </button>
+            )}
+          </div>
+        </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-[1600px] mx-auto px-6 py-8">
-        {renderView()}
-      </main>
-      
-      {/* Global Footer */}
-      <footer className="bg-white border-t border-slate-200 py-6 mt-12 text-center text-sm text-slate-400">
-        <p>© {new Date().getFullYear()} StatSuite. Powered by Gemini & JuliusAI. Coded by richmondjabla</p>
-      </footer>
-    </div>
+        {/* Main Content Area */}
+        <main className="max-w-[1600px] mx-auto px-6 py-8">
+          {renderView()}
+        </main>
+        
+        {/* Global Footer */}
+        <footer className="bg-white border-t border-slate-200 py-6 mt-12 text-center text-sm text-slate-400">
+          <p>© {new Date().getFullYear()} StatSuite. Powered by Gemini & JuliusAI. Coded by richmondjabla</p>
+        </footer>
+      </div>
+    </ErrorBoundary>
   );
 }
 
