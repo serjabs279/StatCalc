@@ -1,4 +1,4 @@
-import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, ErrorInfo, ReactNode, Component } from 'react';
 import { Calculator, BarChart3, TrendingUp, Sigma, ArrowRight, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { ViewState } from './types';
 import CorrelationView from './components/views/CorrelationView';
@@ -6,13 +6,22 @@ import AnovaView from './components/views/AnovaView';
 import DescriptiveView from './components/views/DescriptiveView';
 import ReliabilityView from './components/views/ReliabilityView';
 
-class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean, error: Error | null }> {
-  constructor(props: { children: ReactNode }) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
+interface ErrorBoundaryProps {
+  children?: ReactNode;
+}
 
-  static getDerivedStateFromError(error: Error) {
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  public state: ErrorBoundaryState = {
+    hasError: false,
+    error: null
+  };
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
   }
 
