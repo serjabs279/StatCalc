@@ -1,13 +1,135 @@
 import { GoogleGenAI } from "@google/genai";
 import { StatisticsResult, CorrelationType, HybridResult, AnovaResult, DescriptiveResult } from "../types";
 
-// Helper to get the client only when needed.
-// This prevents the "API key must be set" error from crashing the app on initial load.
+// --- OFFLINE ANALYSIS ENGINES ---
+// These functions generate interpretations using standard statistical rules 
+// when no API key is present.
+
+const generateLocalCorrelationAnalysis = (
+    stats: StatisticsResult, 
+    labelX: string, 
+    labelY: string, 
+    testType: CorrelationType
+): string => {
+    const isPearson = testType === 'pearson';
+    const val = isPearson ? stats.r : stats.spearmanRho;
+    const p = isPearson ? stats.pValue : stats.spearmanPValue;
+    const absVal = Math.abs(val);
+    
+    // Determine Strength
+    let strength = "negligible";
+    if (absVal >= 0.1) strength = "weak";
+    if (absVal >= 0.3) strength = "moderate";
+    if (absVal >= 0.5) strength = "strong";
+    if (absVal >= 0.8) strength = "very strong";
+
+    const direction = val > 0 ? "positive" : "negative";
+    const sigText = p < 0.05 ? "statistically significant" : "not statistically significant";
+    const decision = p < 0.05 ? "reject" : "fail to reject";
+    const r2 = (val * val * 100).toFixed(2);
+    
+    const symbol = isPearson ? "*r*" : "*ρ*";
+
+    return `### 1. Statistical Result Analysis (Offline Mode)
+The analysis reveals a **${strength}, ${direction}** correlation between **${labelX}** and **${labelY}** (${symbol} = ${val.toFixed(3)}). This relationship is **${sigText}** (p = ${p < 0.001 ? '< .001' : p.toFixed(3)}).
+
+### 2. Hypothesis Verification
+Based on the significance level (α = 0.05), we **${decision}** the null hypothesis. 
+${p < 0.05 ? "There is sufficient evidence to conclude a relationship exists." : "There is insufficient evidence to conclude a relationship exists."}
+
+### 3. Interpretation
+The coefficient of determination indicates that **${labelX}** explains approximately **${r2}%** of the variance in **${labelY}**.
+
+*(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper AI-powered insights.)*`;
+};
+
+const generateLocalAnovaAnalysis = (anova: AnovaResult, groups: string[]): string => {
+    const sig = anova.isSignificant ? "statistically significant" : "not statistically significant";
+    
+    // Find highest and lowest
+    let maxGrp = anova.groups[0];
+    let minGrp = anova.groups[0];
+    anova.groups.forEach(g => {
+        if (g.mean > maxGrp.mean) maxGrp = g;
+        if (g.mean < minGrp.mean) minGrp = g;
+    });
+
+    return `### 1. ANOVA Result Interpretation (Offline Mode)
+A one-way ANOVA was conducted to compare the means of **${groups.length} groups**. The results indicate that there is a **${sig}** difference between the groups (F(${anova.dfBetween}, ${anova.dfWithin}) = ${anova.fStat.toFixed(3)}, p = ${anova.pValue < 0.001 ? '< .001' : anova.pValue.toFixed(3)}).
+
+### 2. Descriptive Comparison
+- **Highest Mean:** ${maxGrp.name} (M = ${maxGrp.mean.toFixed(2)})
+- **Lowest Mean:** ${minGrp.name} (M = ${minGrp.mean.toFixed(2)})
+
+### 3. Conclusion
+${anova.isSignificant 
+    ? "Since p < 0.05, we conclude that not all group means are equal. Post-hoc testing is recommended to identify specifically which groups differ." 
+    : "Since p > 0.05, we fail to reject the null hypothesis. There is no evidence of a significant difference between these groups."}
+
+*(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper AI-powered insights.)*`;
+};
+
+const generateLocalDescriptiveAnalysis = (data: DescriptiveResult, variableName: string): string => {
+    if (data.type === 'categorical') {
+        const top = data.frequencies?.[0];
+        return `### 1. Distribution Summary (Offline Mode)
+The categorical variable **"${variableName}"** (N=${data.n}) was analyzed. 
+The most frequent category is **"${top?.value}"**, accounting for **${top?.percentage.toFixed(1)}%** of the sample (n=${top?.count}).
+
+*(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper AI-powered insights.)*`;
+    }
+
+    return `### 1. Distribution Summary (Offline Mode)
+Descriptive statistics for **"${variableName}"** (N=${data.n}):
+- **Central Tendency:** Mean = ${data.mean?.toFixed(2)}, Median = ${data.median?.toFixed(2)}
+- **Spread:** Standard Deviation = ${data.stdDev?.toFixed(2)}, Range = ${data.min} to ${data.max}
+
+### 2. Normality & Shape
+- **Skewness:** ${data.skewness?.toFixed(3)} (${Math.abs(data.skewness || 0) < 0.5 ? "Approximately Symmetric" : "Skewed"})
+- **Kurtosis:** ${data.kurtosis?.toFixed(3)}
+
+*(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper AI-powered insights.)*`;
+};
+
+const generateLocalHybridAnalysis = (hybrid: HybridResult, labelDependent: string, testType: CorrelationType): string => {
+    const isPearson = testType === 'pearson';
+    const compStats = hybrid.composite.stats;
+    const val = isPearson ? compStats.r : compStats.spearmanRho;
+    const p = isPearson ? compStats.pValue : compStats.spearmanPValue;
+    
+    const sigDims = hybrid.dimensions.filter(d => d.hypothesis.isSignificant).map(d => d.name);
+
+    return `### 1. Macro-Analysis (Composite) (Offline Mode)
+The composite construct **"${hybrid.composite.name}"** shows a **${Math.abs(val) > 0.3 ? "significant" : "weak"}** correlation with **${labelDependent}** (${isPearson ? 'r' : 'rho'} = ${val.toFixed(3)}, p = ${p.toFixed(3)}).
+
+### 2. Micro-Analysis (Dimensions)
+${sigDims.length > 0 
+    ? `The following dimensions significantly contribute to this relationship: **${sigDims.join(', ')}**.` 
+    : "None of the individual dimensions showed a statistically significant correlation with the dependent variable."}
+
+*(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper AI-powered insights.)*`;
+};
+
+
+// --- MAIN SERVICE ---
+
 const getGeminiClient = () => {
-  const apiKey = process.env.API_KEY;
+  let apiKey = process.env.API_KEY;
+  
   if (!apiKey) {
-    throw new Error("API Key is missing. Please add 'API_KEY' to your Vercel Environment Variables.");
+    console.log("StatSuite: No API Key found in environment variables. Using offline mode.");
+    return null; 
   }
+
+  // Sanitize key (remove spaces that might happen during copy-paste)
+  apiKey = apiKey.trim();
+  
+  if (apiKey.length < 10) {
+      console.warn("StatSuite: API Key looks invalid (too short). Using offline mode.");
+      return null;
+  }
+
+  console.log("StatSuite: API Key detected. Initializing Gemini Client.");
   return new GoogleGenAI({ apiKey });
 };
 
@@ -19,6 +141,8 @@ export const analyzeCorrelation = async (
 ): Promise<string> => {
   try {
     const ai = getGeminiClient();
+    if (!ai) return generateLocalCorrelationAnalysis(stats, labelX, labelY, testType);
+
     const isPearson = testType === 'pearson';
     
     // Formatting constants
@@ -66,14 +190,10 @@ export const analyzeCorrelation = async (
       contents: prompt,
     });
 
-    return response.text || "Unable to generate analysis at this time.";
+    return response.text || generateLocalCorrelationAnalysis(stats, labelX, labelY, testType);
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    // Return a user-friendly error string that will be displayed in the UI
-    if (error.message.includes("API Key")) {
-      throw new Error("API Key is missing. Check your Vercel settings.");
-    }
-    throw new Error("Failed to analyze data with Gemini.");
+    console.warn("Gemini API Error, falling back to local:", error);
+    return generateLocalCorrelationAnalysis(stats, labelX, labelY, testType);
   }
 };
 
@@ -84,6 +204,8 @@ export const analyzeHybridStrategy = async (
 ): Promise<string> => {
   try {
     const ai = getGeminiClient();
+    if (!ai) return generateLocalHybridAnalysis(hybridData, labelDependent, testType);
+
     const isPearson = testType === 'pearson';
     const symbol = isPearson ? "***r***" : "***ρ***";
     const pSymbol = "***p***";
@@ -122,13 +244,10 @@ export const analyzeHybridStrategy = async (
       contents: prompt,
     });
 
-    return response.text || "Unable to generate hybrid analysis.";
+    return response.text || generateLocalHybridAnalysis(hybridData, labelDependent, testType);
   } catch (error: any) {
-    console.error("Gemini API Error:", error);
-    if (error.message.includes("API Key")) {
-      throw new Error("API Key is missing. Check your Vercel settings.");
-    }
-    throw new Error("Failed to analyze hybrid data.");
+    console.warn("Gemini API Error, falling back to local:", error);
+    return generateLocalHybridAnalysis(hybridData, labelDependent, testType);
   }
 };
 
@@ -138,6 +257,8 @@ export const analyzeAnova = async (
 ): Promise<string> => {
     try {
         const ai = getGeminiClient();
+        if (!ai) return generateLocalAnovaAnalysis(anova, groups);
+
         const fSymbol = "***F***";
         const pSymbol = "***p***";
         const alphaSymbol = "***α***";
@@ -169,12 +290,10 @@ export const analyzeAnova = async (
             contents: prompt,
         });
 
-        return response.text || "Unable to analyze ANOVA.";
+        return response.text || generateLocalAnovaAnalysis(anova, groups);
     } catch (error: any) {
-        if (error.message.includes("API Key")) {
-            throw new Error("API Key is missing. Check your Vercel settings.");
-        }
-        throw new Error("Failed to analyze ANOVA.");
+        console.warn("Gemini API Error, falling back to local:", error);
+        return generateLocalAnovaAnalysis(anova, groups);
     }
 };
 
@@ -184,6 +303,8 @@ export const analyzeDescriptives = async (
 ): Promise<string> => {
     try {
         const ai = getGeminiClient();
+        if (!ai) return generateLocalDescriptiveAnalysis(data, variableName);
+
         const mSymbol = "***M***";
         const sdSymbol = "***SD***";
         
@@ -216,11 +337,9 @@ export const analyzeDescriptives = async (
             contents: prompt,
         });
 
-        return response.text || "Unable to analyze descriptives.";
+        return response.text || generateLocalDescriptiveAnalysis(data, variableName);
     } catch (error: any) {
-        if (error.message.includes("API Key")) {
-            throw new Error("API Key is missing. Check your Vercel settings.");
-        }
-        throw new Error("Failed to analyze descriptives.");
+        console.warn("Gemini API Error, falling back to local:", error);
+        return generateLocalDescriptiveAnalysis(data, variableName);
     }
 };
