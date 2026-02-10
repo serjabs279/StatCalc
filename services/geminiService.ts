@@ -1,9 +1,15 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { StatisticsResult, CorrelationType, HybridResult, AnovaResult, DescriptiveResult } from "../types";
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+// Helper to get the client only when needed.
+// This prevents the "API key must be set" error from crashing the app on initial load.
+const getGeminiClient = () => {
+  const apiKey = process.env.API_KEY;
+  if (!apiKey) {
+    throw new Error("API Key is missing. Please add 'API_KEY' to your Vercel Environment Variables.");
+  }
+  return new GoogleGenAI({ apiKey });
+};
 
 export const analyzeCorrelation = async (
   stats: StatisticsResult,
@@ -12,6 +18,7 @@ export const analyzeCorrelation = async (
   testType: CorrelationType
 ): Promise<string> => {
   try {
+    const ai = getGeminiClient();
     const isPearson = testType === 'pearson';
     
     // Formatting constants
@@ -23,9 +30,7 @@ export const analyzeCorrelation = async (
     
     const correlationValue = isPearson ? stats.r.toFixed(4) : stats.spearmanRho.toFixed(4);
     const pValue = isPearson ? stats.pValue.toFixed(6) : stats.spearmanPValue.toFixed(6);
-    const pValueOneTailed = isPearson ? stats.pValueOneTailed.toFixed(6) : stats.spearmanPValueOneTailed.toFixed(6);
     
-    const rSqValue = isPearson ? stats.rSquared : stats.spearmanRho * stats.spearmanRho;
     const rSquaredSymbol = isPearson ? "***r***²" : "***ρ***²";
     const rSquaredLabel = isPearson ? "Coefficient of Determination" : "Squared Rank Correlation";
 
@@ -62,8 +67,12 @@ export const analyzeCorrelation = async (
     });
 
     return response.text || "Unable to generate analysis at this time.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini API Error:", error);
+    // Return a user-friendly error string that will be displayed in the UI
+    if (error.message.includes("API Key")) {
+      throw new Error("API Key is missing. Check your Vercel settings.");
+    }
     throw new Error("Failed to analyze data with Gemini.");
   }
 };
@@ -74,6 +83,7 @@ export const analyzeHybridStrategy = async (
   testType: CorrelationType
 ): Promise<string> => {
   try {
+    const ai = getGeminiClient();
     const isPearson = testType === 'pearson';
     const symbol = isPearson ? "***r***" : "***ρ***";
     const pSymbol = "***p***";
@@ -113,8 +123,11 @@ export const analyzeHybridStrategy = async (
     });
 
     return response.text || "Unable to generate hybrid analysis.";
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gemini API Error:", error);
+    if (error.message.includes("API Key")) {
+      throw new Error("API Key is missing. Check your Vercel settings.");
+    }
     throw new Error("Failed to analyze hybrid data.");
   }
 };
@@ -124,6 +137,7 @@ export const analyzeAnova = async (
     groups: string[]
 ): Promise<string> => {
     try {
+        const ai = getGeminiClient();
         const fSymbol = "***F***";
         const pSymbol = "***p***";
         const alphaSymbol = "***α***";
@@ -156,7 +170,10 @@ export const analyzeAnova = async (
         });
 
         return response.text || "Unable to analyze ANOVA.";
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message.includes("API Key")) {
+            throw new Error("API Key is missing. Check your Vercel settings.");
+        }
         throw new Error("Failed to analyze ANOVA.");
     }
 };
@@ -166,6 +183,7 @@ export const analyzeDescriptives = async (
     variableName: string
 ): Promise<string> => {
     try {
+        const ai = getGeminiClient();
         const mSymbol = "***M***";
         const sdSymbol = "***SD***";
         
@@ -199,7 +217,10 @@ export const analyzeDescriptives = async (
         });
 
         return response.text || "Unable to analyze descriptives.";
-    } catch (error) {
+    } catch (error: any) {
+        if (error.message.includes("API Key")) {
+            throw new Error("API Key is missing. Check your Vercel settings.");
+        }
         throw new Error("Failed to analyze descriptives.");
     }
 };
