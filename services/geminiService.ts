@@ -114,7 +114,7 @@ ${sigDims.length > 0
 // --- MAIN SERVICE ---
 
 const getGeminiClient = () => {
-  let apiKey = process.env.API_KEY;
+  let apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   
   if (!apiKey) {
     console.log("StatSuite: No API Key found in environment variables. Using offline mode.");
