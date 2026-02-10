@@ -1,0 +1,5 @@
+{
+  "name": "Correlation Analyst",
+  "description": "A sophisticated statistical tool to calculate Pearson's r and Spearman's rho, visualize data, and generate AI-powered insights.",
+  "requestFramePermissions": []
+}
