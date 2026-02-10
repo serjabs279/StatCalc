@@ -1,4 +1,5 @@
 
+
 export interface DataPoint {
   x: number;
   y: number;
@@ -31,7 +32,7 @@ export interface StatisticsResult {
 
 export type CorrelationType = 'pearson' | 'spearman';
 export type AnalysisMode = 'simple' | 'hybrid';
-export type ViewState = 'dashboard' | 'correlation' | 'anova' | 'descriptive';
+export type ViewState = 'dashboard' | 'correlation' | 'anova' | 'descriptive' | 'reliability';
 export type DescriptiveType = 'continuous' | 'categorical';
 
 export interface AnalysisState {
@@ -130,4 +131,23 @@ export interface DescriptiveResult {
   standardError?: number;
   // For Categorical
   frequencies?: FrequencyItem[];
+}
+
+// --- RELIABILITY TYPES ---
+export interface ItemReliability {
+  id: string;
+  name: string;
+  mean: number;
+  stdDev: number;
+  correctedItemTotalCorr: number;
+  alphaIfDeleted: number;
+}
+
+export interface ReliabilityResult {
+  alpha: number;
+  nItems: number; // k
+  nParticipants: number; // N
+  items: ItemReliability[];
+  scaleMean: number;
+  scaleStdDev: number;
 }

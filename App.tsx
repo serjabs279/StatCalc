@@ -1,9 +1,10 @@
 import React, { useState, Component, ErrorInfo, ReactNode } from 'react';
-import { Calculator, BarChart3, TrendingUp, Sigma, ArrowRight, AlertTriangle } from 'lucide-react';
+import { Calculator, BarChart3, TrendingUp, Sigma, ArrowRight, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { ViewState } from './types';
 import CorrelationView from './components/views/CorrelationView';
 import AnovaView from './components/views/AnovaView';
 import DescriptiveView from './components/views/DescriptiveView';
+import ReliabilityView from './components/views/ReliabilityView';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean, error: Error | null }> {
   constructor(props: { children: ReactNode }) {
@@ -59,9 +60,20 @@ function App() {
       case 'correlation': return <CorrelationView />;
       case 'anova': return <AnovaView />;
       case 'descriptive': return <DescriptiveView />;
+      case 'reliability': return <ReliabilityView />;
       default: return <Dashboard onViewSelect={setCurrentView} />;
     }
   };
+
+  const getSubHeader = () => {
+      switch(currentView) {
+          case 'correlation': return 'Correlation';
+          case 'anova': return 'ANOVA';
+          case 'descriptive': return 'Descriptives';
+          case 'reliability': return 'Reliability';
+          default: return '';
+      }
+  }
 
   return (
     <ErrorBoundary>
@@ -82,7 +94,7 @@ function App() {
                 </h1>
                 {currentView !== 'dashboard' && (
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    {currentView === 'correlation' ? 'Correlation' : currentView === 'anova' ? 'ANOVA' : 'Descriptives'}
+                    {getSubHeader()}
                   </span>
                 )}
               </div>
@@ -123,11 +135,11 @@ const Dashboard = ({ onViewSelect }: { onViewSelect: (v: ViewState) => void }) =
         </p>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8 max-w-7xl mx-auto">
         {/* Correlation Card */}
         <button 
           onClick={() => onViewSelect('correlation')}
-          className="group bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-indigo-200 transition-all duration-300 text-left flex flex-col relative overflow-hidden"
+          className="group bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-indigo-200 transition-all duration-300 text-left flex flex-col relative overflow-hidden h-full"
         >
            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><TrendingUp className="w-32 h-32" /></div>
            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
@@ -145,13 +157,13 @@ const Dashboard = ({ onViewSelect }: { onViewSelect: (v: ViewState) => void }) =
         {/* ANOVA Card */}
         <button 
           onClick={() => onViewSelect('anova')}
-          className="group bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-emerald-200 transition-all duration-300 text-left flex flex-col relative overflow-hidden"
+          className="group bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-emerald-200 transition-all duration-300 text-left flex flex-col relative overflow-hidden h-full"
         >
            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><BarChart3 className="w-32 h-32" /></div>
            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
               <BarChart3 className="w-6 h-6" />
            </div>
-           <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-emerald-700 transition-colors">Group Comparison (ANOVA)</h3>
+           <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-emerald-700 transition-colors">Group Comparison</h3>
            <p className="text-slate-500 text-sm leading-relaxed mb-6">
              One-Way ANOVA testing for comparing means across 3+ groups. Includes Post-hoc logic and significance reporting.
            </p>
@@ -163,17 +175,35 @@ const Dashboard = ({ onViewSelect }: { onViewSelect: (v: ViewState) => void }) =
         {/* Descriptive Card */}
         <button 
           onClick={() => onViewSelect('descriptive')}
-          className="group bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-pink-200 transition-all duration-300 text-left flex flex-col relative overflow-hidden"
+          className="group bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-pink-200 transition-all duration-300 text-left flex flex-col relative overflow-hidden h-full"
         >
            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><Sigma className="w-32 h-32" /></div>
            <div className="w-12 h-12 bg-pink-50 text-pink-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
               <Sigma className="w-6 h-6" />
            </div>
-           <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-pink-700 transition-colors">Descriptive Statistics</h3>
+           <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-pink-700 transition-colors">Descriptive Stats</h3>
            <p className="text-slate-500 text-sm leading-relaxed mb-6">
              Analyze frequencies for categorical data or central tendency (Mean, Median, SD) and distribution for continuous data.
            </p>
            <div className="mt-auto flex items-center text-sm font-bold text-pink-600 gap-1 opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all">
+             Open Tool <ArrowRight className="w-4 h-4" />
+           </div>
+        </button>
+
+        {/* Reliability Card */}
+        <button 
+          onClick={() => onViewSelect('reliability')}
+          className="group bg-white p-8 rounded-2xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-cyan-200 transition-all duration-300 text-left flex flex-col relative overflow-hidden h-full"
+        >
+           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity"><ShieldCheck className="w-32 h-32" /></div>
+           <div className="w-12 h-12 bg-cyan-50 text-cyan-600 rounded-xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+              <ShieldCheck className="w-6 h-6" />
+           </div>
+           <h3 className="text-xl font-bold text-slate-900 mb-2 group-hover:text-cyan-700 transition-colors">Reliability Analysis</h3>
+           <p className="text-slate-500 text-sm leading-relaxed mb-6">
+             Assess scale consistency using Cronbach's Alpha. Includes "Alpha if Item Deleted" to identify problematic items.
+           </p>
+           <div className="mt-auto flex items-center text-sm font-bold text-cyan-600 gap-1 opacity-0 group-hover:opacity-100 transform translate-x-[-10px] group-hover:translate-x-0 transition-all">
              Open Tool <ArrowRight className="w-4 h-4" />
            </div>
         </button>

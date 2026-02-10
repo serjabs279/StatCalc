@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { StatisticsResult, CorrelationType, HybridResult, AnovaResult, DescriptiveResult } from "../types";
+import { StatisticsResult, CorrelationType, HybridResult, AnovaResult, DescriptiveResult, ReliabilityResult } from "../types";
 
 // --- OFFLINE ANALYSIS ENGINES ---
 // These functions generate interpretations using standard statistical rules 
@@ -110,11 +110,33 @@ ${sigDims.length > 0
 *(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper AI-powered insights.)*`;
 };
 
+const generateLocalReliabilityAnalysis = (result: ReliabilityResult): string => {
+    let interpretation = "Unacceptable";
+    if (result.alpha >= 0.9) interpretation = "Excellent";
+    else if (result.alpha >= 0.8) interpretation = "Good";
+    else if (result.alpha >= 0.7) interpretation = "Acceptable";
+    else if (result.alpha >= 0.6) interpretation = "Questionable";
+    else if (result.alpha >= 0.5) interpretation = "Poor";
+
+    const problematicItems = result.items.filter(i => i.alphaIfDeleted > result.alpha);
+
+    return `### 1. Reliability Assessment (Offline Mode)
+The internal consistency of the ${result.nItems}-item scale was assessed using Cronbach's Alpha. The obtained alpha coefficient is **${result.alpha.toFixed(3)}**, which indicates **${interpretation}** reliability.
+
+### 2. Item Analysis
+${problematicItems.length > 0 
+    ? `The analysis suggests that the reliability could be improved by removing the following items: **${problematicItems.map(i => i.name).join(', ')}**.` 
+    : "No items were identified that would significantly improve the alpha if deleted."}
+
+*(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper AI-powered insights.)*`;
+};
+
 
 // --- MAIN SERVICE ---
 
 const getGeminiClient = () => {
-  let apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  // Use process.env.API_KEY as per coding guidelines and to avoid ImportMeta types issues
+  let apiKey = process.env.API_KEY;
   
   if (!apiKey) {
     console.log("StatSuite: No API Key found in environment variables. Using offline mode.");
@@ -358,5 +380,52 @@ export const analyzeDescriptives = async (
     } catch (error: any) {
         console.warn("Gemini API Error, falling back to local:", error);
         return generateLocalDescriptiveAnalysis(data, variableName);
+    }
+};
+
+export const analyzeReliability = async (
+    result: ReliabilityResult
+): Promise<string> => {
+    try {
+        const ai = getGeminiClient();
+        if (!ai) return generateLocalReliabilityAnalysis(result);
+
+        const alphaSymbol = "***α***";
+
+        // Identify items that improve alpha if deleted
+        const improveItems = result.items
+            .filter(i => i.alphaIfDeleted > result.alpha)
+            .map(i => `${i.name} (if deleted, α -> ${i.alphaIfDeleted.toFixed(3)})`)
+            .join(', ');
+
+        const prompt = `
+            Role: Psychometrician / Senior Analyst.
+            Task: Interpret Cronbach's Alpha Reliability Analysis.
+            Formatting: Bold italics for ${alphaSymbol}. No LaTeX.
+
+            Data Context:
+            - Cronbach's Alpha: ${result.alpha.toFixed(3)}
+            - Number of Items: ${result.nItems}
+            - Sample Size: ${result.nParticipants}
+            - Items that would improve alpha if deleted: ${improveItems || "None"}
+
+            Structure:
+            ### 1. Reliability Assessment
+            State the alpha value and interpret internal consistency (Excellent >.9, Good >.8, Acceptable >.7, etc.).
+            ### 2. Item-Level Analysis
+            Discuss if the scale is performing well. Specifically mention if any items should be removed to improve reliability.
+            ### 3. Conclusion
+            Is this scale reliable enough for research purposes?
+        `;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+        });
+
+        return response.text || generateLocalReliabilityAnalysis(result);
+    } catch (error: any) {
+        console.warn("Gemini API Error, falling back to local:", error);
+        return generateLocalReliabilityAnalysis(result);
     }
 };

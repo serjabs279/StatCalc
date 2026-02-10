@@ -1,5 +1,6 @@
 
-import { DataPoint, StatisticsResult, LikertConfig, HypothesisResult, CorrelationType, GroupInput, AnovaResult, DescriptiveResult, FrequencyItem } from '../types';
+
+import { DataPoint, StatisticsResult, LikertConfig, HypothesisResult, CorrelationType, GroupInput, AnovaResult, DescriptiveResult, FrequencyItem, ReliabilityResult, ItemReliability } from '../types';
 
 // Lanczos approximation for log-gamma function
 function logGamma(z: number): number {
@@ -150,6 +151,36 @@ export const calculateCompositeVector = (arrays: number[][]): number[] => {
   }
   return composite;
 };
+
+// --- HELPER STATISTICS FUNCTIONS ---
+function calculateVariance(data: number[]): number {
+    const n = data.length;
+    if (n < 2) return 0;
+    const mean = data.reduce((a, b) => a + b, 0) / n;
+    return data.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (n - 1);
+}
+
+function calculateMean(data: number[]): number {
+    return data.reduce((a, b) => a + b, 0) / data.length;
+}
+
+function calculatePearsonCorrelation(x: number[], y: number[]): number {
+    const n = x.length;
+    if (n !== y.length || n < 2) return 0;
+    const meanX = calculateMean(x);
+    const meanY = calculateMean(y);
+    let num = 0, denX = 0, denY = 0;
+    for (let i = 0; i < n; i++) {
+        const dx = x[i] - meanX;
+        const dy = y[i] - meanY;
+        num += dx * dy;
+        denX += dx * dx;
+        denY += dy * dy;
+    }
+    if (denX === 0 || denY === 0) return 0;
+    return num / Math.sqrt(denX * denY);
+}
+
 
 // --- CORRELATION LOGIC ---
 export const calculateStatistics = (data: DataPoint[]): StatisticsResult | null => {
@@ -411,4 +442,109 @@ export const calculateDescriptivesFromSummary = (
     });
 
     return { type: 'categorical', n, frequencies };
+};
+
+// --- RELIABILITY LOGIC (Cronbach's Alpha) ---
+
+export const parseMatrixData = (input: string): number[][] | null => {
+    if (!input.trim()) return null;
+    
+    // Split by rows
+    const rows = input.trim().split(/\r?\n/);
+    const matrix: number[][] = [];
+    
+    for (const row of rows) {
+        if (!row.trim()) continue;
+        const vals = row.trim().split(/[\t,;]+| +/).map(v => parseFloat(v));
+        // Check if row has valid numbers
+        if (vals.some(isNaN)) return null; 
+        matrix.push(vals);
+    }
+    
+    if (matrix.length === 0) return null;
+    
+    // Check if rectangular
+    const colCount = matrix[0].length;
+    if (matrix.some(r => r.length !== colCount)) return null;
+    
+    return matrix;
+}
+
+export const calculateCronbachAlpha = (matrix: number[][], itemNames?: string[]): ReliabilityResult | null => {
+    // Matrix: Rows = Participants, Cols = Items
+    const nParticipants = matrix.length;
+    const nItems = matrix[0].length;
+    
+    if (nParticipants < 2 || nItems < 2) return null;
+
+    // 1. Calculate Variance of each item (column)
+    const itemVariances: number[] = [];
+    const itemMeans: number[] = [];
+    
+    for (let j = 0; j < nItems; j++) {
+        const colData = matrix.map(row => row[j]);
+        itemVariances.push(calculateVariance(colData));
+        itemMeans.push(calculateMean(colData));
+    }
+
+    // 2. Calculate Variance of Total Scores
+    const totalScores = matrix.map(row => row.reduce((a, b) => a + b, 0));
+    const totalVariance = calculateVariance(totalScores);
+    const scaleMean = calculateMean(totalScores);
+    const scaleStdDev = Math.sqrt(totalVariance);
+
+    // 3. Cronbach's Alpha Formula
+    // alpha = (k / (k-1)) * (1 - (sum(itemVariances) / totalVariance))
+    const sumItemVariances = itemVariances.reduce((a, b) => a + b, 0);
+    
+    let alpha = 0;
+    if (totalVariance > 0) {
+        alpha = (nItems / (nItems - 1)) * (1 - (sumItemVariances / totalVariance));
+    }
+
+    // 4. Calculate Item Statistics (Alpha if deleted, etc)
+    const items: ItemReliability[] = [];
+    
+    for (let j = 0; j < nItems; j++) {
+        // A. Calculate Corrected Item-Total Correlation
+        // Correlate Item j with (Total - Item j)
+        const itemScores = matrix.map(row => row[j]);
+        const restScores = matrix.map(row => row.reduce((acc, val, idx) => idx === j ? acc : acc + val, 0));
+        const itemTotalCorr = calculatePearsonCorrelation(itemScores, restScores);
+        
+        // B. Calculate Alpha if Deleted
+        // Recalculate alpha for the matrix excluding column j
+        // Sub-matrix variance method is faster:
+        // New Total Var = Var(Total - Item)
+        // This is exactly Var(restScores) calculated above? Yes.
+        const restVariance = calculateVariance(restScores);
+        
+        // Sum of variances of remaining items
+        const sumRestVariances = sumItemVariances - itemVariances[j];
+        
+        let alphaIfDeleted = 0;
+        const kNew = nItems - 1;
+        if (restVariance > 0 && kNew > 0) {
+             // Basic formula for alpha
+             alphaIfDeleted = (kNew / (kNew - 1)) * (1 - (sumRestVariances / restVariance));
+        }
+
+        items.push({
+            id: `item-${j}`,
+            name: itemNames && itemNames[j] ? itemNames[j] : `Item ${j + 1}`,
+            mean: itemMeans[j],
+            stdDev: Math.sqrt(itemVariances[j]),
+            correctedItemTotalCorr: itemTotalCorr,
+            alphaIfDeleted
+        });
+    }
+
+    return {
+        alpha,
+        nItems,
+        nParticipants,
+        items,
+        scaleMean,
+        scaleStdDev
+    };
 };
