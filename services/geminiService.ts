@@ -7,12 +7,12 @@ const generateLocalNormalityAnalysis = (res: NormalityResult): string => {
     const sigText = res.isNormal ? "appears normally distributed" : "violates normality assumptions";
     return `### 1. Assumption Verification (Offline Mode)
 An analysis of the distribution for **"${res.variableName}"** was conducted using the Kolmogorov-Smirnov (KS) test. 
-The data **${sigText}** (KS = ${res.ksStat.toFixed(4)}, p = ${res.pValue < 0.001 ? '< .001' : res.pValue.toFixed(3)}).
+The data **${sigText}** (KS = ${res.ksStat.toFixed(4)}, *p* = ${res.pValue < 0.001 ? '< .001' : res.pValue.toFixed(3)}).
 
 ### 2. Shape & Distributional Characteristics
 - **Skewness:** ${res.skewness.toFixed(3)} (${Math.abs(res.skewness) < 0.5 ? "Symmetric" : "Skewed"})
 - **Kurtosis:** ${res.kurtosis.toFixed(3)}
-- **Sample Size:** N = ${res.n}
+- **Sample Size:** *N* = ${res.n}
 
 ### 3. Methodological Recommendation
 ${res.recommendation}
@@ -23,7 +23,7 @@ ${res.recommendation}
 const generateLocalMannWhitneyAnalysis = (res: MannWhitneyResult): string => {
     const sigText = res.isSignificant ? "statistically significant" : "not statistically significant";
     return `### 1. Mann-Whitney U Test Analysis (Offline Mode)
-A Mann-Whitney U test was performed to compare distributions between **${res.group1.name}** and **${res.group2.name}**. The result is **${sigText}** (U = ${res.uStat.toFixed(2)}, z = ${res.zStat.toFixed(3)}, p = ${res.pValue < 0.001 ? '< .001' : res.pValue.toFixed(3)}).
+A Mann-Whitney U test was performed to compare distributions between **${res.group1.name}** and **${res.group2.name}**. The result is **${sigText}** (*U* = ${res.uStat.toFixed(2)}, *z* = ${res.zStat.toFixed(3)}, *p* = ${res.pValue < 0.001 ? '< .001' : res.pValue.toFixed(3)}).
 
 ### 2. Median & Rank Comparison
 - **${res.group1.name}**: Median = ${res.group1.median.toFixed(2)}, Mean Rank = ${res.group1.meanRank.toFixed(2)}
@@ -40,7 +40,7 @@ ${res.isSignificant
 const generateLocalKruskalWallisAnalysis = (res: KruskalWallisResult): string => {
     const sigText = res.isSignificant ? "statistically significant" : "not statistically significant";
     return `### 1. Kruskal-Wallis H Test Analysis (Offline Mode)
-A Kruskal-Wallis test was conducted to compare ranks across **${res.groups.length} groups**. The results indicate a **${sigText}** difference (H(${res.df}) = ${res.hStat.toFixed(3)}, p = ${res.pValue < 0.001 ? '< .001' : res.pValue.toFixed(3)}).
+A Kruskal-Wallis test was conducted to compare ranks across **${res.groups.length} groups**. The results indicate a **${sigText}** difference (*H*(${res.df}) = ${res.hStat.toFixed(3)}, *p* = ${res.pValue < 0.001 ? '< .001' : res.pValue.toFixed(3)}).
 
 ### 2. Group Performance Summary
 - **Highest Mean Rank**: ${res.groups.reduce((a, b) => a.meanRank > b.meanRank ? a : b).name}
@@ -48,7 +48,7 @@ A Kruskal-Wallis test was conducted to compare ranks across **${res.groups.lengt
 
 ### 3. Conclusion
 ${res.isSignificant 
-    ? "Since p < 0.05, we conclude that the distributions of the groups are not identical. Post-hoc comparisons may identify specific group differences." 
+    ? "Since *p* < 0.05, we conclude that the distributions of the groups are not identical. Post-hoc comparisons may identify specific group differences." 
     : "The evidence suggests the distributions of the various groups are statistically similar."}
 
 *(Note: Interpretation insights are enhanced when using a Google Gemini API Key.)*`;
@@ -63,7 +63,7 @@ const generateLocalChiSquareAnalysis = (res: ChiSquareResult): string => {
     if (v >= 0.5) strength = "strong";
 
     return `### 1. Chi-Square Test Analysis (Offline Mode)
-A Pearson Chi-Square test was performed to examine the relationship between **${res.labelX}** and **${res.labelY}**. The association is **${sigText}** (χ²(${res.df}, N=${res.n}) = ${res.chiSquare.toFixed(3)}, p = ${res.pValue < 0.001 ? '< .001' : res.pValue.toFixed(3)}).
+A Pearson Chi-Square test was performed to examine the relationship between **${res.labelX}** and **${res.labelY}**. The association is **${sigText}** (χ²(${res.df}, *N*=${res.n}) = ${res.chiSquare.toFixed(3)}, *p* = ${res.pValue < 0.001 ? '< .001' : res.pValue.toFixed(3)}).
 
 ### 2. Association Strength
 Cramer's V was calculated as **${res.cramersV.toFixed(3)}**, indicating a **${strength}** association between the categories.
@@ -79,7 +79,7 @@ ${res.isSignificant
 const generateLocalRegressionAnalysis = (reg: RegressionResult): string => {
     const sigText = reg.isSignificant ? "statistically significant" : "not statistically significant";
     return `### 1. Regression Model Analysis (Offline Mode)
-A simple linear regression was conducted to predict **${reg.labelY}** based on **${reg.labelX}**. The regression model is **${sigText}** (F(${reg.anova.dfReg}, ${reg.anova.dfRes}) = ${reg.fStat.toFixed(3)}, p = ${reg.pValue < 0.001 ? '< .001' : reg.pValue.toFixed(3)}).
+A simple linear regression was conducted to predict **${reg.labelY}** based on **${reg.labelX}**. The regression model is **${sigText}** (*F*(${reg.anova.dfReg}, ${reg.anova.dfRes}) = ${reg.fStat.toFixed(3)}, *p* = ${reg.pValue < 0.001 ? '< .001' : reg.pValue.toFixed(3)}).
 
 ### 2. Equation & Predictive Power
 - **Equation:** Y = ${reg.intercept.toFixed(3)} + (${reg.slope.toFixed(3)}) * X
@@ -105,18 +105,18 @@ const generateLocalTTestAnalysis = (ttest: TTestResult): string => {
     if (d >= 0.8) effectSize = "large";
 
     return `### 1. T-Test Result Analysis (Offline Mode)
-An ${ttest.type} t-test was conducted to compare **${group1.name}** and **${group2.name}**. The results indicate a **${sigText}** difference between the two groups (t(${ttest.df}) = ${ttest.tStat.toFixed(3)}, p = ${ttest.pValue < 0.001 ? '< .001' : ttest.pValue.toFixed(3)}).
+An ${ttest.type} t-test was conducted to compare **${group1.name}** and **${group2.name}**. The results indicate a **${sigText}** difference between the two groups (*t*(${ttest.df}) = ${ttest.tStat.toFixed(3)}, *p* = ${ttest.pValue < 0.001 ? '< .001' : ttest.pValue.toFixed(3)}).
 
 ### 2. Descriptive Comparison
-- **${group1.name}:** M = ${group1.mean.toFixed(2)}, SD = ${group1.stdDev.toFixed(2)}
-- **${group2.name}:** M = ${group2.mean.toFixed(2)}, SD = ${group2.stdDev.toFixed(2)}
+- **${group1.name}:** *M* = ${group1.mean.toFixed(2)}, *SD* = ${group1.stdDev.toFixed(2)}
+- **${group2.name}:** *M* = ${group2.mean.toFixed(2)}, *SD* = ${group2.stdDev.toFixed(2)}
 - **Mean Difference:** ${ttest.meanDifference.toFixed(3)}
 
 ### 3. Effect Size & Conclusion
-The calculated Cohen's d is **${ttest.cohensD.toFixed(3)}**, which represents a **${effectSize}** effect size.
+The calculated Cohen's *d* is **${ttest.cohensD.toFixed(3)}**, which represents a **${effectSize}** effect size.
 ${ttest.isSignificant 
-    ? "Based on the p-value < 0.05, we conclude there is a real difference between these conditions." 
-    : "Based on the p-value > 0.05, we fail to find enough evidence to conclude the groups differ."}
+    ? "Based on the *p*-value < 0.05, we conclude there is a real difference between these conditions." 
+    : "Based on the *p*-value > 0.05, we fail to find enough evidence to conclude the groups differ."}
 
 *(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper insights.)*`;
 };
@@ -146,7 +146,7 @@ const generateLocalCorrelationAnalysis = (
     const symbol = isPearson ? "*r*" : "*ρ*";
 
     return `### 1. Statistical Result Analysis (Offline Mode)
-The analysis reveals a **${strength}, ${direction}** correlation between **${labelX}** and **${labelY}** (${symbol} = ${val.toFixed(3)}). This relationship is **${sigText}** (p = ${p < 0.001 ? '< .001' : p.toFixed(3)}).
+The analysis reveals a **${strength}, ${direction}** correlation between **${labelX}** and **${labelY}** (${symbol} = ${val.toFixed(3)}). This relationship is **${sigText}** (*p* = ${p < 0.001 ? '< .001' : p.toFixed(3)}).
 
 ### 2. Hypothesis Verification
 Based on the significance level (α = 0.05), we **${decision}** the null hypothesis. 
@@ -168,16 +168,16 @@ const generateLocalAnovaAnalysis = (anova: AnovaResult, groups: string[]): strin
     });
 
     return `### 1. ANOVA Result Interpretation (Offline Mode)
-A one-way ANOVA was conducted to compare the means of **${groups.length} groups**. The results indicate that there is a **${sig}** difference between the groups (F(${anova.dfBetween}, ${anova.dfWithin}) = ${anova.fStat.toFixed(3)}, p = ${anova.pValue < 0.001 ? '< .001' : anova.pValue.toFixed(3)}).
+A one-way ANOVA was conducted to compare the means of **${groups.length} groups**. The results indicate that there is a **${sig}** difference between the groups (*F*(${anova.dfBetween}, ${anova.dfWithin}) = ${anova.fStat.toFixed(3)}, *p* = ${anova.pValue < 0.001 ? '< .001' : anova.pValue.toFixed(3)}).
 
 ### 2. Descriptive Comparison
-- **Highest Mean:** ${maxGrp.name} (M = ${maxGrp.mean.toFixed(2)})
-- **Lowest Mean:** ${minGrp.name} (M = ${minGrp.mean.toFixed(2)})
+- **Highest Mean:** ${maxGrp.name} (*M* = ${maxGrp.mean.toFixed(2)})
+- **Lowest Mean:** ${minGrp.name} (*M* = ${minGrp.mean.toFixed(2)})
 
 ### 3. Conclusion
 ${anova.isSignificant 
-    ? "Since p < 0.05, we conclude that not all group means are equal. Post-hoc testing is recommended to identify specifically which groups differ." 
-    : "Since p > 0.05, we fail to reject the null hypothesis. There is no evidence of a significant difference between these groups."}
+    ? "Since *p* < 0.05, we conclude that not all group means are equal. Post-hoc testing is recommended to identify specifically which groups differ." 
+    : "Since *p* > 0.05, we fail to reject the null hypothesis. There is no evidence of a significant difference between these groups."}
 
 *(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper insights.)*`;
 };
@@ -186,15 +186,15 @@ const generateLocalDescriptiveAnalysis = (data: DescriptiveResult, variableName:
     if (data.type === 'categorical') {
         const top = data.frequencies?.[0];
         return `### 1. Distribution Summary (Offline Mode)
-The categorical variable **"${variableName}"** (N=${data.n}) was analyzed. 
-The most frequent category is **"${top?.value}"**, accounting for **${top?.percentage.toFixed(1)}%** of the sample (n=${top?.count}).
+The categorical variable **"${variableName}"** (*N*=${data.n}) was analyzed. 
+The most frequent category is **"${top?.value}"**, accounting for **${top?.percentage.toFixed(1)}%** of the sample (*n*=${top?.count}).
 
 *(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper insights.)*`;
     }
     return `### 1. Distribution Summary (Offline Mode)
-Descriptive statistics for **"${variableName}"** (N=${data.n}):
-- **Central Tendency:** Mean = ${data.mean?.toFixed(2)}, Median = ${data.median?.toFixed(2)}
-- **Spread:** Standard Deviation = ${data.stdDev?.toFixed(2)}, Range = ${data.min} to ${data.max}
+Descriptive statistics for **"${variableName}"** (*N*=${data.n}):
+- **Central Tendency:** *M* = ${data.mean?.toFixed(2)}, *Mdn* = ${data.median?.toFixed(2)}
+- **Spread:** *SD* = ${data.stdDev?.toFixed(2)}, Range = ${data.min} to ${data.max}
 
 ### 2. Normality & Shape
 - **Skewness:** ${data.skewness?.toFixed(3)} (${Math.abs(data.skewness || 0) < 0.5 ? "Approximately Symmetric" : "Skewed"})
@@ -231,6 +231,20 @@ const getGeminiClient = () => {
   return new GoogleGenAI({ apiKey: apiKey.trim() });
 };
 
+// --- PROMPT TEMPLATES ---
+// Centralized strict formatting rules to be injected into every prompt
+const STRICT_FORMATTING_RULES = `
+STRICT OUTPUT FORMATTING RULES:
+1. DO NOT use LaTeX syntax (no $r$, no \\(p\\), no $ symbols).
+2. DO NOT wrap statistical symbols in parentheses like ($r$) or (r). Just write them as part of the sentence or equation.
+3. USE MARKDOWN ITALICS for Latin statistical symbols: *p*, *r*, *t*, *F*, *M*, *SD*, *N*, *z*.
+4. USE PLAIN UTF-8 for Greek symbols: α, χ², η², ρ (rho), β.
+5. Example Correct: "The correlation was significant, *r* = .85, *p* < .001."
+6. Example Incorrect: "The correlation ($r$) was significant."
+7. Example Incorrect: "p-value ($p$) = 0.05"
+8. NEVER use '$' characters in your output.
+`;
+
 export const analyzeNormality = async (res: NormalityResult): Promise<string> => {
     try {
         const ai = getGeminiClient();
@@ -239,12 +253,12 @@ export const analyzeNormality = async (res: NormalityResult): Promise<string> =>
         const prompt = `
             Role: Methodological Advisor / Statistics Expert.
             Task: Analyze normality and distributional assumptions for a research dataset.
-            Formatting: Bold italics for symbols (***p***, ***KS***). No LaTeX.
+            ${STRICT_FORMATTING_RULES}
 
             Data Context:
             - Variable: "${res.variableName}"
             - Sample Size: N = ${res.n}
-            - KS Statistic: ${res.ksStat.toFixed(4)}, ***p*** = ${res.pValue.toFixed(4)}
+            - KS Statistic: ${res.ksStat.toFixed(4)}, p = ${res.pValue.toFixed(4)}
             - Skewness: ${res.skewness.toFixed(3)}
             - Kurtosis: ${res.kurtosis.toFixed(3)}
             - Status: ${res.isNormal ? "Normal" : "Non-Normal"}
@@ -282,12 +296,12 @@ export const analyzeAnova = async (anova: AnovaResult, groups: string[]): Promis
         const prompt = `
             Role: Senior Research Consultant.
             Task: Analyze One-Way ANOVA results.
-            Formatting: Bold italics for statistical symbols (***F***, ***p***). No LaTeX.
+            ${STRICT_FORMATTING_RULES}
 
             Data:
             - Groups: ${groups.join(', ')}
-            - Result: ***F***(${anova.dfBetween}, ${anova.dfWithin}) = ${anova.fStat.toFixed(3)}
-            - Significance: ***p*** = ${anova.pValue.toFixed(4)}
+            - Result: F(${anova.dfBetween}, ${anova.dfWithin}) = ${anova.fStat.toFixed(3)}
+            - Significance: p = ${anova.pValue.toFixed(4)}
             - Grand Mean: ${anova.grandMean.toFixed(2)}
 
             STRICT RESEARCH PROTOCOL:
@@ -295,7 +309,7 @@ export const analyzeAnova = async (anova: AnovaResult, groups: string[]): Promis
             1. **DESCRIPTIVE CHARACTERIZATION**
                Summarize group means and standard deviations.
             2. **INFERENTIAL ASSESSMENT**
-               Interpret significance and the F-statistic.
+               Interpret significance and the *F*-statistic.
             3. **CONTEXTUAL SYNTHESIS**
                Explain what these group differences mean in practical terms.
             4. **EVALUATIVE CRITIQUE**
@@ -323,13 +337,13 @@ export const analyzeMannWhitneyU = async (res: MannWhitneyResult): Promise<strin
 
         const prompt = `
             Role: Senior Research Consultant.
-            Task: Analyze Mann-Whitney U test results. This is a non-parametric test comparing the distributions of two independent groups based on ranks.
-            Formatting: Bold italics for statistical symbols (***U***, ***z***, ***p***). No LaTeX.
+            Task: Analyze Mann-Whitney U test results.
+            ${STRICT_FORMATTING_RULES}
 
             Data:
             - Comparison: ${res.group1.name} vs ${res.group2.name}
-            - Result: ***U*** = ${res.uStat.toFixed(2)}, ***z*** = ${res.zStat.toFixed(3)}
-            - Significance: ***p*** = ${res.pValue.toFixed(4)}
+            - Result: U = ${res.uStat.toFixed(2)}, z = ${res.zStat.toFixed(3)}
+            - Significance: p = ${res.pValue.toFixed(4)}
             - Group 1 (n=${res.group1.n}): Median=${res.group1.median.toFixed(2)}, Mean Rank=${res.group1.meanRank.toFixed(2)}
             - Group 2 (n=${res.group2.n}): Median=${res.group2.median.toFixed(2)}, Mean Rank=${res.group2.meanRank.toFixed(2)}
 
@@ -338,7 +352,7 @@ export const analyzeMannWhitneyU = async (res: MannWhitneyResult): Promise<strin
             1. **DESCRIPTIVE CHARACTERIZATION**
                Summarize the medians and mean ranks.
             2. **INFERENTIAL ASSESSMENT**
-               Interpret significance.
+               Interpret significance using *U* and *z*.
             3. **CONTEXTUAL SYNTHESIS**
                Explain practical terms.
             4. **EVALUATIVE CRITIQUE**
@@ -368,17 +382,17 @@ export const analyzeKruskalWallis = async (res: KruskalWallisResult): Promise<st
 
         const prompt = `
             Role: Senior Research Consultant.
-            Task: Analyze Kruskal-Wallis H test results. Non-parametric alternative to ANOVA.
-            Formatting: Bold italics for statistical symbols (***H***, ***p***). No LaTeX.
+            Task: Analyze Kruskal-Wallis H test results.
+            ${STRICT_FORMATTING_RULES}
 
             Data:
             - Groups: ${groupSummary}
-            - Result: ***H***(${res.df}) = ${res.hStat.toFixed(3)}
-            - Significance: ***p*** = ${res.pValue.toFixed(4)}
+            - Result: H(${res.df}) = ${res.hStat.toFixed(3)}
+            - Significance: p = ${res.pValue.toFixed(4)}
 
             STRICT RESEARCH PROTOCOL:
             1. **DESCRIPTIVE CHARACTERIZATION**
-            2. **INFERENTIAL ASSESSMENT**
+            2. **INFERENTIAL ASSESSMENT** (Use *H* statistic)
             3. **CONTEXTUAL SYNTHESIS**
             4. **EVALUATIVE CRITIQUE**
 
@@ -400,7 +414,19 @@ export const analyzeChiSquare = async (res: ChiSquareResult): Promise<string> =>
     try {
         const ai = getGeminiClient();
         if (!ai) return generateLocalChiSquareAnalysis(res);
-        const prompt = `Role: Senior Research Consultant. Analyze Chi-Square results. Protocol 1-4. χ²(${res.df})=${res.chiSquare.toFixed(3)}, p=${res.pValue.toFixed(4)}, V=${res.cramersV.toFixed(3)}. No personal pronouns.`;
+        const prompt = `
+            Role: Senior Research Consultant. 
+            Task: Analyze Chi-Square results. 
+            ${STRICT_FORMATTING_RULES}
+            
+            Data:
+            - χ²(${res.df}) = ${res.chiSquare.toFixed(3)}
+            - p = ${res.pValue.toFixed(4)}
+            - Cramer's V = ${res.cramersV.toFixed(3)}
+            
+            Protocol: 1. Association 2. Significance 3. Strength. 
+            No personal pronouns.
+        `;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         return response.text || generateLocalChiSquareAnalysis(res);
     } catch (error) { return generateLocalChiSquareAnalysis(res); }
@@ -410,7 +436,19 @@ export const analyzeRegression = async (reg: RegressionResult): Promise<string> 
     try {
         const ai = getGeminiClient();
         if (!ai) return generateLocalRegressionAnalysis(reg);
-        const prompt = `Role: Senior Research Consultant. Analyze Linear Regression. Protocol 1-4. Y=${reg.intercept.toFixed(2)}+${reg.slope.toFixed(2)}X, r²=${reg.rSquared.toFixed(3)}, p=${reg.pValue.toFixed(4)}. No personal pronouns.`;
+        const prompt = `
+            Role: Senior Research Consultant. 
+            Task: Analyze Linear Regression. 
+            ${STRICT_FORMATTING_RULES}
+            
+            Data:
+            - Equation: Y = ${reg.intercept.toFixed(2)} + ${reg.slope.toFixed(2)}X
+            - R² = ${reg.rSquared.toFixed(3)}
+            - p = ${reg.pValue.toFixed(4)}
+            
+            Protocol: 1. Model Fit 2. Predictor Significance 3. Equation interpretation.
+            No personal pronouns.
+        `;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         return response.text || generateLocalRegressionAnalysis(reg);
     } catch (error) { return generateLocalRegressionAnalysis(reg); }
@@ -420,7 +458,19 @@ export const analyzeTTest = async (ttest: TTestResult): Promise<string> => {
     try {
         const ai = getGeminiClient();
         if (!ai) return generateLocalTTestAnalysis(ttest);
-        const prompt = `Role: Senior Research Consultant. Analyze ${ttest.type} T-Test. Protocol 1-4. t(${ttest.df})=${ttest.tStat.toFixed(2)}, p=${ttest.pValue.toFixed(4)}, d=${ttest.cohensD.toFixed(2)}. No personal pronouns.`;
+        const prompt = `
+            Role: Senior Research Consultant. 
+            Task: Analyze ${ttest.type} T-Test. 
+            ${STRICT_FORMATTING_RULES}
+            
+            Data:
+            - t(${ttest.df}) = ${ttest.tStat.toFixed(2)}
+            - p = ${ttest.pValue.toFixed(4)}
+            - Cohen's d = ${ttest.cohensD.toFixed(2)}
+            
+            Protocol: 1. Group Differences 2. Significance 3. Effect Size.
+            No personal pronouns.
+        `;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         return response.text || generateLocalTTestAnalysis(ttest);
     } catch (error) { return generateLocalTTestAnalysis(ttest); }
@@ -430,7 +480,18 @@ export const analyzeCorrelation = async (stats: StatisticsResult, labelX: string
   try {
     const ai = getGeminiClient();
     if (!ai) return generateLocalCorrelationAnalysis(stats, labelX, labelY, testType);
-    const prompt = `Role: Senior Research Consultant. Analyze Correlation (${testType}). Protocol 1-4. r=${stats.r.toFixed(3)}, p=${stats.pValue.toFixed(4)}. No personal pronouns.`;
+    const prompt = `
+        Role: Senior Research Consultant. 
+        Task: Analyze Correlation (${testType}). 
+        ${STRICT_FORMATTING_RULES}
+        
+        Data:
+        - r = ${stats.r.toFixed(3)}
+        - p = ${stats.pValue.toFixed(4)}
+        
+        Protocol: 1. Strength/Direction 2. Significance 3. Variance Explained (R²).
+        No personal pronouns.
+    `;
     const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
     return response.text || generateLocalCorrelationAnalysis(stats, labelX, labelY, testType);
   } catch (error) { return generateLocalCorrelationAnalysis(stats, labelX, labelY, testType); }
@@ -440,7 +501,19 @@ export const analyzeDescriptives = async (data: DescriptiveResult, variableName:
     try {
         const ai = getGeminiClient();
         if (!ai) return generateLocalDescriptiveAnalysis(data, variableName);
-        const prompt = `Role: Data Analyst. Descriptive Summary. Protocol 1-4. Context: ${variableName}, N=${data.n}, Mean=${data.mean?.toFixed(2)}. No personal pronouns.`;
+        const prompt = `
+            Role: Data Analyst. 
+            Task: Descriptive Summary. 
+            ${STRICT_FORMATTING_RULES}
+            
+            Data:
+            - Variable: ${variableName}
+            - N = ${data.n}
+            - Mean = ${data.mean?.toFixed(2)}
+            
+            Protocol: 1. Central Tendency 2. Dispersion 3. Shape.
+            No personal pronouns.
+        `;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         return response.text || generateLocalDescriptiveAnalysis(data, variableName);
     } catch (error) { return generateLocalDescriptiveAnalysis(data, variableName); }
@@ -450,7 +523,18 @@ export const analyzeReliability = async (result: ReliabilityResult, scaleName: s
     try {
         const ai = getGeminiClient();
         if (!ai) return generateLocalReliabilityAnalysis(result, scaleName);
-        const prompt = `Role: Psychometrician. Scale: ${scaleName}, Alpha: ${result.alpha.toFixed(3)}. Protocol 1-4. No personal pronouns.`;
+        const prompt = `
+            Role: Psychometrician. 
+            Task: Reliability Analysis.
+            ${STRICT_FORMATTING_RULES}
+            
+            Data:
+            - Scale: ${scaleName}
+            - Cronbach's Alpha (α) = ${result.alpha.toFixed(3)}
+            
+            Protocol: 1. Consistency Level 2. Item Contribution.
+            No personal pronouns.
+        `;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         return response.text || generateLocalReliabilityAnalysis(result, scaleName);
     } catch (error) { return generateLocalReliabilityAnalysis(result, scaleName); }
