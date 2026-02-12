@@ -328,7 +328,7 @@ const CorrelationView: React.FC = () => {
                                 <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-8 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden animate-in fade-in duration-700">
                                      <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none"><Wand2 className="w-64 h-64 text-indigo-600" /></div>
                                      <div className="relative z-10">
-                                        <h3 className="text-xl font-bold text-indigo-900 mb-6 flex items-center gap-2"><Wand2 className="w-6 h-6" /> AI Interpretation</h3>
+                                        <h3 className="text-xl font-bold text-indigo-900 mb-6 flex items-center gap-2"><Wand2 className="w-6 h-6" /> ANALYSIS RESULT</h3>
                                         <div className="prose prose-indigo bg-white/60 p-6 rounded-xl border border-indigo-50/50 max-w-none text-sm shadow-sm">
                                             <ReactMarkdown>{aiAnalysis.result}</ReactMarkdown>
                                         </div>
