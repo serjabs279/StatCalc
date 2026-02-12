@@ -21,13 +21,12 @@ interface ScatterVisProps {
 const ScatterVis: React.FC<ScatterVisProps> = ({ data, stats, labelX, labelY }) => {
   if (!stats || data.length === 0) {
     return (
-      <div className="h-full flex items-center justify-center bg-slate-50 border border-slate-200 rounded-lg text-slate-400">
-        Enter data to visualize correlation
+      <div className="h-full flex items-center justify-center bg-zinc-900 border border-white/5 rounded-3xl text-zinc-600 font-black uppercase tracking-[0.2em] text-[10px]">
+        Awaiting Data Entry...
       </div>
     );
   }
 
-  // Calculate domain for chart with padding
   const xValues = data.map(d => d.x);
   const yValues = data.map(d => d.y);
   const minX = Math.min(...xValues);
@@ -39,45 +38,45 @@ const ScatterVis: React.FC<ScatterVisProps> = ({ data, stats, labelX, labelY }) 
   const yPadding = (maxY - minY) * 0.1 || 1;
 
   return (
-    <div className="w-full h-full bg-white p-4 rounded-xl">
-      <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
-        <span className="w-2 h-2 rounded-full bg-indigo-500"></span>
-        Visual Relationship
+    <div className="w-full h-full bg-black/40 p-8 rounded-[2rem] border border-white/5">
+      <h3 className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.3em] mb-8 flex items-center gap-3">
+        <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+        Scatter Plot Visualization
       </h3>
       <ResponsiveContainer width="100%" height="90%">
-        <ComposedChart
-          margin={{ top: 20, right: 30, bottom: 20, left: 20 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+        <ComposedChart margin={{ top: 20, right: 30, bottom: 20, left: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" vertical={false} />
           <XAxis 
             dataKey="x" 
             type="number" 
             name={labelX} 
             domain={[minX - xPadding, maxX + xPadding]}
-            label={{ value: labelX, position: 'bottom', offset: 0, fill: '#64748b', fontSize: 12 }}
-            tick={{ fill: '#64748b', fontSize: 12 }}
+            label={{ value: labelX, position: 'bottom', offset: 0, fill: '#525252', fontSize: 10, fontWeight: 900 }}
+            tick={{ fill: '#525252', fontSize: 10, fontWeight: 700 }}
+            tickFormatter={(val) => val.toFixed(2)}
             tickLine={false}
-            axisLine={{ stroke: '#cbd5e1' }}
+            axisLine={{ stroke: 'rgba(255,255,255,0.05)' }}
           />
           <YAxis 
             dataKey="y" 
             type="number" 
             name={labelY} 
             domain={[minY - yPadding, maxY + yPadding]}
-            label={{ value: labelY, angle: -90, position: 'left', offset: 0, fill: '#64748b', fontSize: 12 }}
-            tick={{ fill: '#64748b', fontSize: 12 }}
+            label={{ value: labelY, angle: -90, position: 'left', offset: 0, fill: '#525252', fontSize: 10, fontWeight: 900 }}
+            tick={{ fill: '#525252', fontSize: 10, fontWeight: 700 }}
+            tickFormatter={(val) => val.toFixed(2)}
             tickLine={false}
-            axisLine={{ stroke: '#cbd5e1' }}
+            axisLine={{ stroke: 'rgba(255,255,255,0.05)' }}
           />
           <Tooltip 
-            cursor={{ strokeDasharray: '3 3' }}
+            cursor={{ strokeDasharray: '3 3', stroke: 'rgba(255,255,255,0.2)' }}
             content={({ active, payload }) => {
               if (active && payload && payload.length) {
                 const point = payload[0].payload;
                 return (
-                  <div className="bg-slate-800 text-white text-xs p-2 rounded shadow-lg">
-                    <p>{`${labelX}: ${point.x}`}</p>
-                    <p>{`${labelY}: ${point.y}`}</p>
+                  <div className="bg-zinc-900/90 backdrop-blur-xl border border-white/10 text-[10px] font-black uppercase tracking-widest p-3 rounded-xl shadow-2xl">
+                    <p className="text-zinc-500 mb-1">{`${labelX}: ${point.x}`}</p>
+                    <p className="text-white">{`${labelY}: ${point.y}`}</p>
                   </div>
                 );
               }
@@ -85,10 +84,12 @@ const ScatterVis: React.FC<ScatterVisProps> = ({ data, stats, labelX, labelY }) 
             }}
           />
           <Scatter 
-            name="Data Points" 
+            name="Observations" 
             data={data} 
-            fill="#6366f1" 
+            fill="#ffffff" 
             shape="circle" 
+            fillOpacity={0.8}
+            className="drop-shadow-[0_0_8px_rgba(255,255,255,0.3)]"
           />
         </ComposedChart>
       </ResponsiveContainer>

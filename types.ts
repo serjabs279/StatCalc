@@ -1,4 +1,8 @@
 
+// Fix: Updated AnalysisMode to include 'hybrid' to match StatisticalTable expectations
+export type AnalysisMode = 'simple' | 'advanced' | 'hybrid';
+export type ViewState = 'dashboard' | 'correlation' | 'anova' | 'descriptive' | 'reliability' | 'ttest' | 'regression' | 'chisquare' | 'mannwhitney' | 'kruskalwallis' | 'normality';
+export type CorrelationType = 'pearson' | 'spearman';
 
 export interface DataPoint {
   x: number;
@@ -7,14 +11,10 @@ export interface DataPoint {
 }
 
 export interface StatisticsResult {
-  // Pearson metrics
   r: number;
   rSquared: number;
-  // Spearman metrics
   spearmanRho: number;
   spearmanPValue: number;
-  
-  // Common metrics
   n: number;
   meanX: number;
   meanY: number;
@@ -23,17 +23,31 @@ export interface StatisticsResult {
   standardDeviationX: number;
   standardDeviationY: number;
   covariance: number;
-  pValue: number; // Pearson P-Value (2-tailed)
-  
-  // New: 1-tailed values
+  pValue: number; 
   pValueOneTailed: number;
   spearmanPValueOneTailed: number;
+  sums?: {
+    sumX: number;
+    sumY: number;
+    sumX2: number;
+    sumY2: number;
+    sumXY: number;
+    ssX: number;
+    ssY: number;
+    spXY: number;
+  };
 }
 
-export type CorrelationType = 'pearson' | 'spearman';
-export type AnalysisMode = 'simple' | 'hybrid';
-export type ViewState = 'dashboard' | 'correlation' | 'anova' | 'descriptive' | 'reliability';
-export type DescriptiveType = 'continuous' | 'categorical';
+export interface TableColumn {
+  id: string;
+  name: string;
+  values: string[];
+}
+
+export interface TableData {
+  columns: TableColumn[];
+  rowCount: number;
+}
 
 export interface AnalysisState {
   isLoading: boolean;
@@ -41,13 +55,7 @@ export interface AnalysisState {
   error: string | null;
 }
 
-export interface LikertConfig {
-  enabled: boolean;
-  points: 5 | 7;
-  isReversed: boolean;
-  labels: string[];
-}
-
+// Fix: Added HypothesisResult for statistical reporting
 export interface HypothesisResult {
   nullHypothesis: string;
   altHypothesis: string;
@@ -57,27 +65,163 @@ export interface HypothesisResult {
   alpha: number;
 }
 
-export interface DimensionInput {
+// Additional common statistical types used across views
+export interface NormalityResult {
+  variableName: string;
+  n: number;
+  mean: number;
+  stdDev: number;
+  skewness: number;
+  kurtosis: number;
+  ksStat: number;
+  pValue: number;
+  isNormal: boolean;
+  recommendation: string;
+  // Fix: Use specialized types for better type checking
+  histogramData: HistogramBin[];
+  qqPlotData: QQPoint[];
+}
+
+export interface MannWhitneyResult {
+  group1: any;
+  group2: any;
+  uStat: number;
+  zStat: number;
+  pValue: number;
+  isSignificant: boolean;
+  totalN: number;
+}
+
+export interface KruskalWallisResult {
+  groups: any[];
+  hStat: number;
+  df: number;
+  pValue: number;
+  isSignificant: boolean;
+  totalN: number;
+}
+
+export interface ChiSquareResult {
+  n: number;
+  chiSquare: number;
+  df: number;
+  pValue: number;
+  isSignificant: boolean;
+  cramersV: number;
+  labelX: string;
+  labelY: string;
+  rows: string[];
+  cols: string[];
+  observed: number[][];
+  expected: number[][];
+  rowTotals: number[];
+  colTotals: number[];
+  grandTotal: number;
+}
+
+export interface RegressionResult {
+  n: number;
+  slope: number;
+  intercept: number;
+  r: number;
+  rSquared: number;
+  adjRSquared: number;
+  stdErrorEstimate: number;
+  fStat: number;
+  pValue: number;
+  isSignificant: boolean;
+  labelX: string;
+  labelY: string;
+  anova: any;
+  sums: any;
+}
+
+export interface TTestResult {
+  // Fix: Use TTestType instead of inline literal
+  type: TTestType;
+  group1: any;
+  group2: any;
+  tStat: number;
+  df: number;
+  pValue: number;
+  pValueOneTailed: number;
+  isSignificant: boolean;
+  meanDifference: number;
+  stdErrorDifference: number;
+  cohensD: number;
+  ciLower: number;
+  ciUpper: number;
+  pooledStdDev?: number;
+  diffStats?: any;
+}
+
+export interface AnovaResult {
+  groups: any[];
+  ssBetween: number;
+  ssWithin: number;
+  ssTotal: number;
+  dfBetween: number;
+  dfWithin: number;
+  dfTotal: number;
+  msBetween: number;
+  msWithin: number;
+  fStat: number;
+  pValue: number;
+  isSignificant: boolean;
+  grandMean: number;
+}
+
+export interface ReliabilityResult {
+  alpha: number;
+  nItems: number;
+  nParticipants: number;
+  scaleMean: number;
+  scaleStdDev: number;
+  sumItemVariances: number;
+  totalVariance: number;
+  // Fix: Use ItemReliability type
+  items: ItemReliability[];
+}
+
+// Fix: Added ItemReliability for Cronbach's Alpha items
+export interface ItemReliability {
   id: string;
   name: string;
+  mean: number;
+  stdDev: number;
+  variance: number;
+  correctedItemTotalCorr: number;
+  alphaIfDeleted: number;
+}
+
+export interface DescriptiveResult {
+  type: 'continuous' | 'categorical';
+  n: number;
+  mean?: number;
+  median?: number;
+  stdDev?: number;
+  variance?: number;
+  min?: number;
+  max?: number;
+  range?: number;
+  sumX?: number;
+  sumX2?: number;
+  ss?: number;
+  standardError?: number;
+  skewness?: number;
+  kurtosis?: number;
+  // Fix: Added FrequencyItem type
+  frequencies?: FrequencyItem[];
+}
+
+// Fix: Added FrequencyItem for categorical descriptors
+export interface FrequencyItem {
   value: string;
+  count: number;
+  percentage: number;
+  cumulativePercentage: number;
 }
 
-export interface HybridResult {
-  composite: {
-    name: string;
-    stats: StatisticsResult;
-    hypothesis: HypothesisResult;
-  };
-  dimensions: {
-    id: string;
-    name: string;
-    stats: StatisticsResult;
-    hypothesis: HypothesisResult;
-  }[];
-}
-
-// --- NEW ANOVA TYPES ---
 export interface GroupInput {
   id: string;
   name: string;
@@ -85,69 +229,50 @@ export interface GroupInput {
   parsed?: number[];
 }
 
-export interface AnovaResult {
-  groups: {
+export interface LikertConfig {
+  enabled: boolean;
+  labels: string[];
+  isReversed: boolean;
+  points: number;
+}
+
+export interface HybridResult {
+  composite: {
     name: string;
-    n: number;
-    mean: number;
-    stdDev: number;
-    sum: number;
+    stats: StatisticsResult;
+  };
+  dimensions: {
+    id: string;
+    name: string;
+    stats: StatisticsResult;
+    hypothesis: any;
   }[];
-  ssBetween: number; // Sum of Squares Between
-  ssWithin: number;  // Sum of Squares Within
-  ssTotal: number;
-  dfBetween: number;
-  dfWithin: number;
-  dfTotal: number;
-  msBetween: number; // Mean Square
-  msWithin: number;
-  fStat: number;
-  pValue: number;
-  isSignificant: boolean;
 }
 
-// --- NEW DESCRIPTIVE TYPES ---
-export interface FrequencyItem {
-  value: string | number;
+export type DescriptiveType = 'continuous' | 'categorical';
+
+// Fix: Added TTestType used in t-test calculations
+export type TTestType = 'independent' | 'paired';
+
+// Fix: Added BoxPlotStats used for visualization
+export interface BoxPlotStats {
+  min: number;
+  q1: number;
+  median: number;
+  q3: number;
+  max: number;
+  outliers: number[];
+}
+
+// Fix: Added HistogramBin for normality charts
+export interface HistogramBin {
+  binLabel: string;
   count: number;
-  percentage: number;
-  cumulativePercentage: number;
+  normalValue: number;
 }
 
-export interface DescriptiveResult {
-  type: DescriptiveType;
-  n: number;
-  // For Continuous
-  mean?: number;
-  median?: number;
-  mode?: number[];
-  stdDev?: number;
-  variance?: number;
-  min?: number;
-  max?: number;
-  range?: number;
-  skewness?: number;
-  kurtosis?: number;
-  standardError?: number;
-  // For Categorical
-  frequencies?: FrequencyItem[];
-}
-
-// --- RELIABILITY TYPES ---
-export interface ItemReliability {
-  id: string;
-  name: string;
-  mean: number;
-  stdDev: number;
-  correctedItemTotalCorr: number;
-  alphaIfDeleted: number;
-}
-
-export interface ReliabilityResult {
-  alpha: number;
-  nItems: number; // k
-  nParticipants: number; // N
-  items: ItemReliability[];
-  scaleMean: number;
-  scaleStdDev: number;
+// Fix: Added QQPoint for Q-Q diagnostic plots
+export interface QQPoint {
+  theoretical: number;
+  observed: number;
 }

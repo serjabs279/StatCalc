@@ -1,126 +1,90 @@
 import React, { useState, useRef } from 'react';
-import { ShieldCheck, Info, AlertCircle, Wand2, FileText, Check, Copy, ArrowUpRight, ArrowRightLeft } from 'lucide-react';
+import { ShieldCheck, Info, AlertCircle, Wand2, Activity, FileSpreadsheet, ChevronDown, Plus, Copy, Check, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
-import { ReliabilityResult, AnalysisState } from '../../types';
-import { parseMatrixData, calculateCronbachAlpha } from '../../utils/statistics';
+import CalculationTrace from '../CalculationTrace';
+import DataModal from '../DataModal';
+import { ReliabilityResult, AnalysisState, TableData } from '../../types';
+import { calculateCronbachAlpha } from '../../utils/statistics';
 import { analyzeReliability } from '../../services/geminiService';
 
-const SAMPLE_STANDARD = `4	4	3	4
-3	2	3	2
-5	5	4	5
-3	3	3	3
-4	4	4	4
-2	1	2	1
-5	5	5	5
-3	3	3	3
-4	4	4	4`;
-
-const SAMPLE_REVERSE = `2	2
-4	5
-2	1
-1	2
-3	3
-4	5
-1	1
-3	2
-2	2`;
-
 const ReliabilityView: React.FC = () => {
-    // Input State
-    const [scaleName, setScaleName] = useState<string>("Interpretation");
-    const [inputData, setInputData] = useState<string>("");
-    const [reverseInputData, setReverseInputData] = useState<string>("");
-    
-    // Analysis State
+    // Spreadsheet State
+    const [tableData, setTableData] = useState<TableData>({
+        columns: [
+            { id: '1', name: 'Item_1', values: ['4', '5', '4', '3', '5', '4', '5', '4'] },
+            { id: '2', name: 'Item_2', values: ['5', '4', '5', '4', '4', '5', '4', '5'] },
+            { id: '3', name: 'Item_3', values: ['4', '5', '4', '4', '5', '4', '5', '4'] },
+            { id: '4', name: 'Item_4', values: ['1', '2', '2', '1', '1', '2', '1', '2'] } // Low correlation item
+        ],
+        rowCount: 8
+    });
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [selectedItemIds, setSelectedItemIds] = useState<string[]>(['1', '2', '3', '4']);
+
+    const [scaleName, setScaleName] = useState<string>("Subjective Wellbeing Scale");
     const [result, setResult] = useState<ReliabilityResult | null>(null);
+    const [excludedCount, setExcludedCount] = useState<number>(0);
     const [error, setError] = useState<string | null>(null);
     const [aiAnalysis, setAiAnalysis] = useState<AnalysisState>({ isLoading: false, result: null, error: null });
     const aiSectionRef = useRef<HTMLDivElement>(null);
-    
-    // Copy functionality generalized
-    const [copiedMap, setCopiedMap] = useState<Record<string, boolean>>({});
-    const caseProcessingRef = useRef<HTMLDivElement>(null);
-    const reliabilityStatsRef = useRef<HTMLDivElement>(null);
-    const itemTotalRef = useRef<HTMLDivElement>(null);
-
-    const handleCopy = (key: string, ref: React.RefObject<HTMLElement>) => {
-        if (!ref.current) return;
-        const range = document.createRange();
-        range.selectNode(ref.current);
-        window.getSelection()?.removeAllRanges();
-        window.getSelection()?.addRange(range);
-        document.execCommand('copy');
-        
-        setCopiedMap(prev => ({ ...prev, [key]: true }));
-        setTimeout(() => setCopiedMap(prev => ({ ...prev, [key]: false })), 2000);
-        window.getSelection()?.removeAllRanges();
-    };
+    const resultsRef = useRef<HTMLDivElement>(null);
+    const [copied, setCopied] = useState<string | null>(null);
 
     const handleCalculate = () => {
-        setError(null);
+        setError(null); 
         setAiAnalysis({ isLoading: false, result: null, error: null });
-        setCopiedMap({});
-        setResult(null);
 
-        // Simple parsing without Likert config
-        const matrixA = parseMatrixData(inputData);
-        const matrixB = parseMatrixData(reverseInputData);
-
-        if (!matrixA && !matrixB) {
-            setError("Please enter data in at least one of the input fields.");
+        if (selectedItemIds.length < 2) {
+            setError("Select at least 2 items (columns) for reliability analysis.");
+            setResult(null);
             return;
         }
 
-        let finalMatrix: number[][] = [];
-        let itemNames: string[] = [];
+        // Prepare Matrix
+        const matrix: number[][] = [];
+        const nRows = tableData.rowCount;
+        let valid = 0;
+        let invalid = 0;
+        
+        for (let r = 0; r < nRows; r++) {
+            const rowValues: number[] = [];
+            let rowValid = true;
+            let rowEmpty = true;
 
-        // Assume standard 5-point scale for reverse calculation if not specified, 
-        // or just simple reverse (max+1 - val).
-        // Since we removed the config, we will default to 5-point scale reversal for simplicity in this reverted version,
-        // or just expect the user to manually reverse.
-        // However, the original code had a default. Let's assume 5-point for now to keep it working reasonably.
-        const points = 5;
-
-        // Logic to merge and reverse
-        if (matrixA && matrixB) {
-            // Check row consistency
-            if (matrixA.length !== matrixB.length) {
-                setError(`Row Mismatch: Standard items have ${matrixA.length} participants, but Reverse items have ${matrixB.length}. These must match exactly to combine them.`);
-                return;
+            for (const id of selectedItemIds) {
+                const col = tableData.columns.find(c => c.id === id);
+                const valStr = col?.values[r]?.trim() || "";
+                if (valStr !== "") rowEmpty = false;
+                
+                const val = parseFloat(valStr);
+                if (isNaN(val)) {
+                    rowValid = false;
+                    break;
+                }
+                rowValues.push(val);
             }
 
-            // Reverse Matrix B
-            const reversedB = matrixB.map(row => row.map(val => (points + 1) - val));
-            
-            // Merge A + B
-            finalMatrix = matrixA.map((row, i) => [...row, ...reversedB[i]]);
-            
-            // Generate names
-            const kA = matrixA[0].length;
-            const kB = matrixB[0].length;
-            itemNames = [
-                ...Array.from({length: kA}, (_, i) => `Item ${i + 1}`),
-                ...Array.from({length: kB}, (_, i) => `RevItem ${i + 1} (R)`)
-            ];
-            
-        } else if (matrixA) {
-            finalMatrix = matrixA;
-            // Default naming
-        } else if (matrixB) {
-            // Only reverse items
-            finalMatrix = matrixB.map(row => row.map(val => (points + 1) - val));
-            itemNames = Array.from({length: matrixB[0].length}, (_, i) => `RevItem ${i + 1} (R)`);
+            if (rowValid && !rowEmpty) {
+                matrix.push(rowValues);
+                valid++;
+            } else if (!rowEmpty) {
+                invalid++;
+            }
         }
 
-        if (finalMatrix.length < 2 || finalMatrix[0].length < 2) {
-             setError("Calculation failed. Ensure the final dataset has at least 2 participants and 2 items.");
-             return;
+        if (matrix.length < 2) {
+            setError("Insufficient valid numeric rows across all selected items.");
+            setResult(null);
+            return;
         }
 
-        const reliability = calculateCronbachAlpha(finalMatrix, itemNames);
-        if (!reliability) {
-             setError("Calculation failed due to variance issues (e.g., constant columns). Check your data.");
-             return;
+        setExcludedCount(invalid);
+        const names = selectedItemIds.map(id => tableData.columns.find(c => c.id === id)?.name || "Item");
+        const reliability = calculateCronbachAlpha(matrix, names);
+        if (!reliability) { 
+            setError("Calculation failed. Ensure data variability."); 
+            setResult(null);
+            return; 
         }
         setResult(reliability);
     };
@@ -132,304 +96,289 @@ const ReliabilityView: React.FC = () => {
         try {
             const analysis = await analyzeReliability(result, scaleName);
             setAiAnalysis({ isLoading: false, result: analysis, error: null });
-        } catch (e) {
-            setAiAnalysis({ isLoading: false, result: null, error: "Failed to generate AI analysis." });
+        } catch (e) { 
+            setAiAnalysis({ isLoading: false, result: null, error: "System Error." }); 
         }
     };
 
-    const loadExample = () => {
-        setInputData(SAMPLE_STANDARD);
-        setReverseInputData(SAMPLE_REVERSE);
-        setScaleName("Job Satisfaction Scale");
-        setTimeout(() => document.getElementById('run-reliability')?.click(), 100);
+    const handleCopyTable = (key: string) => {
+        const tableId = `table-${key}`;
+        const el = document.getElementById(tableId);
+        if (!el) return;
+        
+        const range = document.createRange();
+        range.selectNode(el);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+        try {
+            document.execCommand('copy');
+            setCopied(key);
+            setTimeout(() => setCopied(null), 2000);
+        } catch (err) { console.error(err); }
+        window.getSelection()?.removeAllRanges();
     };
 
-    const formatSPSS = (num: number) => {
-        const fixed = num.toFixed(3);
-        if (num > -1 && num < 1) {
-             return fixed.replace(/^0+/, '').replace(/^-0+/, '-');
-        }
-        return fixed;
+    const toggleItemSelection = (id: string) => {
+        setSelectedItemIds(prev => 
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
     };
 
-    const getInterpretation = (alpha: number) => {
-        if (alpha >= 0.9) return "excellent";
-        if (alpha >= 0.8) return "good";
-        if (alpha >= 0.7) return "acceptable";
-        if (alpha >= 0.6) return "questionable";
-        if (alpha >= 0.5) return "poor";
-        return "unacceptable";
+    const generateAPAReport = () => {
+        if (!result) return '';
+        const interpretation = result.alpha >= 0.7 ? "acceptable" : "low";
+        return `The internal consistency of the ${result.nItems}-item ${scaleName} was assessed using Cronbach’s alpha coefficient (N = ${result.nParticipants}). The scale demonstrated ${interpretation} reliability, α = ${result.alpha.toFixed(3)}. Descriptive analysis of individual items suggested that reliability ${result.items.some(i => i.alphaIfDeleted > result.alpha) ? 'could be improved by the removal of problematic items' : 'was consistent across all included components'}.`;
     };
 
-    const generateAPA = () => {
-        if (!result) return "";
-        const interp = getInterpretation(result.alpha);
-        return `The internal consistency of the ${scaleName} (${result.nItems} items) was assessed using Cronbach's alpha. The analysis revealed a reliability coefficient of α = ${formatSPSS(result.alpha)}, indicating ${interp} reliability.`;
+    const getReliabilityColor = (alpha: number) => {
+        if (alpha >= 0.8) return { 
+            primary: 'text-emerald-500', 
+            bg: 'bg-emerald-500', 
+            border: 'border-emerald-500/20', 
+            shadow: 'shadow-[0_0_25px_rgba(16,185,129,0.3)]',
+            light: 'text-emerald-400'
+        };
+        if (alpha >= 0.7) return { 
+            primary: 'text-amber-500', 
+            bg: 'bg-amber-500', 
+            border: 'border-amber-500/20', 
+            shadow: 'shadow-[0_0_25px_rgba(245,158,11,0.3)]',
+            light: 'text-amber-400'
+        };
+        return { 
+            primary: 'text-rose-500', 
+            bg: 'bg-rose-500', 
+            border: 'border-rose-500/20', 
+            shadow: 'shadow-[0_0_25px_rgba(244,63,94,0.3)]',
+            light: 'text-rose-400'
+        };
     };
+
+    const semanticColors = result ? getReliabilityColor(result.alpha) : null;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-12 gap-8 animate-in fade-in duration-500">
-            {/* INPUT COL */}
+            {/* Sidebar */}
             <div className="md:col-span-4 xl:col-span-3 space-y-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 md:sticky md:top-24 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
-                     <div className="mb-4 pb-4 border-b border-slate-100">
-                        <h3 className="font-semibold text-slate-700 mb-1">Data Input Strategy</h3>
-                        <p className="text-xs text-slate-500 leading-relaxed">
-                            Combine standard items with reverse-scored items. We will automatically flip the reverse scores and merge the datasets.
-                        </p>
-                     </div>
-
-                     <div className="mb-4">
-                        <label className="text-sm font-medium text-slate-700 block mb-1">Interpretation</label>
-                        <input value={scaleName} onChange={e => setScaleName(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900" placeholder="e.g. Job Satisfaction" />
-                     </div>
-
-                     {/* STANDARD ITEMS */}
-                     <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                             <label className="text-xs font-bold text-slate-700 uppercase flex flex-col">
-                                <span>Standard Items</span>
-                                <span className="text-[10px] text-slate-400 font-normal normal-case">e.g. Part 1, 3</span>
-                            </label>
-                        </div>
-                        <textarea 
-                            value={inputData} 
-                            onChange={e => setInputData(e.target.value)} 
-                            className="w-full h-40 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg font-mono text-xs resize-none text-slate-900 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition-all" 
-                            placeholder={`Paste matrix (Rows=Participants)\n3  4\n2  3\n...`} 
-                        />
-                     </div>
-
-                     {/* REVERSE ITEMS */}
-                     <div className="space-y-2 pt-2">
-                        <div className="flex justify-between items-center">
-                             <label className="text-xs font-bold text-slate-700 uppercase flex flex-col">
-                                <span>Reverse Items</span>
-                                <span className="text-[10px] text-slate-400 font-normal normal-case">Scores will be flipped (Default 5-pt)</span>
-                            </label>
-                        </div>
-                        <textarea 
-                            value={reverseInputData} 
-                            onChange={e => setReverseInputData(e.target.value)} 
-                            className="w-full h-32 px-3 py-2 bg-amber-50/50 border border-amber-200 rounded-lg font-mono text-xs resize-none text-slate-900 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none transition-all" 
-                            placeholder={`Paste reverse items (e.g. Part 2)\n2  1\n4  5\n...`} 
-                        />
-                     </div>
-
-                    <div className="mt-4 space-y-3 pt-2 border-t border-slate-100">
+                <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 sticky top-24">
+                    <div className="mb-6">
                         <button 
-                            id="run-reliability" 
-                            onClick={handleCalculate} 
-                            className="w-full py-3 bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2"
+                            onClick={() => setIsModalOpen(true)}
+                            className="w-full p-4 bg-slate-50 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center gap-2 group hover:border-cyan-300 hover:bg-cyan-50/30 transition-all"
                         >
-                            <ArrowRightLeft className="w-4 h-4" /> Merge & Calculate
-                        </button>
-                        <button 
-                            onClick={loadExample} 
-                            className="w-full py-2 text-xs text-slate-500 hover:text-cyan-600"
-                        >
-                            Load Example (3 Parts)
+                            <FileSpreadsheet className="w-8 h-8 text-slate-300 group-hover:text-cyan-400 transition-colors" />
+                            <span className="text-xs font-bold text-slate-500 group-hover:text-cyan-600">Open Data Spreadsheet</span>
                         </button>
                     </div>
-                    {error && <div className="p-3 bg-amber-50 text-amber-700 text-xs rounded-lg mt-4 flex gap-2 items-start"><AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" /><span className="leading-snug">{error}</span></div>}
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 block">Scale Name</label>
+                            <input 
+                                value={scaleName} 
+                                onChange={e => setScaleName(e.target.value)} 
+                                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-cyan-500 transition-all" 
+                                placeholder="e.g. Life Satisfaction"
+                            />
+                        </div>
+
+                        <div className="space-y-4 pt-4 border-t border-slate-100">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Select Scale Items</label>
+                            <div className="space-y-2 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+                                {tableData.columns.map(col => (
+                                    <button
+                                        key={col.id}
+                                        onClick={() => toggleItemSelection(col.id)}
+                                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                                            selectedItemIds.includes(col.id)
+                                                ? 'bg-cyan-50 border-cyan-200 text-cyan-700'
+                                                : 'bg-white border-slate-200 text-slate-400 hover:border-cyan-100'
+                                        }`}
+                                    >
+                                        <span className="truncate pr-2">{col.name}</span>
+                                        {selectedItemIds.includes(col.id) && <Plus className="w-3 h-3 rotate-45 shrink-0" />}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <button onClick={handleCalculate} className="w-full py-3 bg-cyan-600 hover:bg-cyan-700 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2">Run Reliability</button>
+                        {error && <div className="mt-4 p-3 bg-amber-50 text-amber-600 text-[11px] font-medium rounded-lg border border-amber-100">{error}</div>}
+                    </div>
                 </div>
             </div>
 
-             {/* RESULTS COL */}
-             <div className="md:col-span-8 xl:col-span-9 space-y-6">
-                <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
-                    <h2 className="text-lg font-semibold mb-8 flex items-center gap-2">
-                        <ShieldCheck className="w-5 h-5 text-cyan-500" /> 
-                        Reliability Analysis Results
-                    </h2>
+            {/* Results */}
+            <div className="md:col-span-8 xl:col-span-9 space-y-6" ref={resultsRef}>
+                {result && semanticColors ? (
+                    <div className="animate-in slide-in-from-bottom-4 duration-500 space-y-8">
+                        <div className="flex items-center gap-2 mb-2">
+                            <ShieldCheck className="w-5 h-5 text-cyan-600" />
+                            <h2 className="text-lg font-bold text-slate-800">Reliability Analysis Output <span className="text-slate-400 font-normal ml-2">| {scaleName}</span></h2>
+                        </div>
 
-                    {result ? (
-                        <div className="space-y-12">
-                            
-                            {/* SPSS STYLE TABLES SECTION */}
-                            <div className="flex flex-col gap-8 items-start">
-                                
-                                {/* TABLE 1: Case Processing Summary */}
-                                <div>
-                                    <div className="relative flex justify-center items-center mb-2 w-[300px]">
-                                        <h3 className="font-bold text-slate-900 text-sm">Case Processing Summary</h3>
-                                        <button 
-                                            onClick={() => handleCopy('case', caseProcessingRef)}
-                                            className={`absolute right-0 p-1 rounded transition-colors ${copiedMap['case'] ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-cyan-600 hover:bg-slate-100'}`}
-                                            title="Copy Table"
-                                        >
-                                            {copiedMap['case'] ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                                        </button>
-                                    </div>
-                                    <div ref={caseProcessingRef} className="border-2 border-black bg-white inline-block">
-                                        <table className="text-sm text-slate-900 border-collapse min-w-[300px]">
-                                            <thead>
-                                                <tr className="border-b border-black">
-                                                    <th className="p-1 w-24"></th>
-                                                    <th className="p-1 text-center border-l border-black w-16">N</th>
-                                                    <th className="p-1 text-center border-l border-black w-16">%</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td className="p-1 pl-2 border-r border-black align-top">
-                                                        <div className="flex gap-4">
-                                                            <span className="font-medium w-10">Cases</span>
-                                                            <span>Valid</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-1 text-center border-r border-black">{result.nParticipants}</td>
-                                                    <td className="p-1 text-center">100.0</td>
-                                                </tr>
-                                                <tr>
-                                                    <td className="p-1 pl-2 border-r border-black align-top">
-                                                        <div className="flex gap-4">
-                                                            <span className="w-10"></span>
-                                                            <span>Excluded<sup>a</sup></span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-1 text-center border-r border-black">0</td>
-                                                    <td className="p-1 text-center">.0</td>
-                                                </tr>
-                                                <tr className="border-t border-black">
-                                                    <td className="p-1 pl-2 border-r border-black align-top">
-                                                        <div className="flex gap-4">
-                                                            <span className="w-10"></span>
-                                                            <span>Total</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="p-1 text-center border-r border-black">{result.nParticipants}</td>
-                                                    <td className="p-1 text-center">100.0</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    <div className="text-[10px] text-slate-600 mt-1 max-w-[300px]">
-                                        a. Listwise deletion based on all variables in the procedure.
+                        {/* Summary Cards */}
+                        <div className={`bg-white p-8 rounded-[2.5rem] shadow-sm border ${semanticColors.border} flex flex-col md:flex-row items-center justify-between gap-8 transition-all duration-700`}>
+                            <div className="flex items-center gap-8">
+                                <div className={`relative w-40 h-40 flex items-center justify-center p-4 rounded-full bg-slate-50/50 ${semanticColors.shadow}`}>
+                                    <svg className="w-full h-full transform -rotate-90" viewBox="0 0 144 144">
+                                        <circle cx="72" cy="72" r="60" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100" />
+                                        <circle cx="72" cy="72" r="60" stroke="currentColor" strokeWidth="12" fill="transparent" strokeDasharray={377} strokeDashoffset={377 - (377 * Math.max(0, result.alpha))} className={`${semanticColors.primary} transition-all duration-1000`} strokeLinecap="round" />
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className={`text-4xl font-black ${semanticColors.primary}`}>{result.alpha.toFixed(3)}</span>
+                                        <span className={`text-[10px] font-black ${semanticColors.light} uppercase tracking-[0.2em]`}>Alpha Index</span>
                                     </div>
                                 </div>
-
-                                {/* TABLE 2: Reliability Statistics */}
                                 <div>
-                                    <div className="relative flex justify-center items-center mb-2 w-[250px]">
-                                        <h3 className="font-bold text-slate-900 text-sm">Reliability Statistics</h3>
-                                        <button 
-                                            onClick={() => handleCopy('reliability', reliabilityStatsRef)}
-                                            className={`absolute right-0 p-1 rounded transition-colors ${copiedMap['reliability'] ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400 hover:text-cyan-600 hover:bg-slate-100'}`}
-                                            title="Copy Table"
-                                        >
-                                            {copiedMap['reliability'] ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                                        </button>
+                                    <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-2">Consistency Status</div>
+                                    <div className={`text-5xl font-black tracking-tighter ${semanticColors.primary}`}>
+                                        {result.alpha >= 0.9 ? "Excellent" : result.alpha >= 0.8 ? "Good" : result.alpha >= 0.7 ? "Acceptable" : result.alpha >= 0.6 ? "Questionable" : "Poor"}
                                     </div>
-                                    <div ref={reliabilityStatsRef} className="border-2 border-black bg-white inline-block">
-                                        <table className="text-sm text-slate-900 border-collapse min-w-[250px]">
-                                            <thead>
-                                                <tr className="border-b border-black">
-                                                    <th className="p-2 text-center border-r border-black">Cronbach's<br/>Alpha</th>
-                                                    <th className="p-2 text-center">N of Items</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <tr>
-                                                    <td className="p-2 text-center border-r border-black font-medium">{formatSPSS(result.alpha)}</td>
-                                                    <td className="p-2 text-center">{result.nItems}</td>
-                                                </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                    <div className="text-slate-500 font-bold text-xs uppercase tracking-widest mt-2">Matrix Profile: {result.nItems} Items</div>
                                 </div>
                             </div>
-                            
-                            {/* ITEM-TOTAL STATISTICS */}
-                            <div className="relative">
-                                <div className="flex justify-between items-end mb-2">
-                                     <h3 className="text-sm font-bold text-slate-900">Item-Total Statistics</h3>
-                                     <button 
-                                        onClick={() => handleCopy('itemTotal', itemTotalRef)} 
-                                        className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${copiedMap['itemTotal'] ? 'bg-cyan-100 text-cyan-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                                    >
-                                        {copiedMap['itemTotal'] ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />} {copiedMap['itemTotal'] ? 'Copied' : 'Copy Table'}
+                            <button onClick={handleAIAnalysis} disabled={aiAnalysis.isLoading} className={`px-10 py-5 ${semanticColors.bg} text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl flex items-center gap-3 transition-all hover:scale-105 active:scale-95 disabled:opacity-70 group`}><Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" /> {aiAnalysis.isLoading ? 'Processing...' : 'Interpretation Consultant'}</button>
+                        </div>
+
+                        <CalculationTrace type="reliability" data={result} />
+
+                        {/* SPSS TABLES GROUP */}
+                        <div className="space-y-10">
+                            {/* 1. Case Processing Summary */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-xs font-bold text-slate-900 uppercase">Case Processing Summary</h3>
+                                    <button onClick={() => handleCopyTable('case')} className={`p-1.5 rounded-md transition-all ${copied === 'case' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400 hover:bg-slate-100'}`}>
+                                        {copied === 'case' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                                     </button>
                                 </div>
-                                
-                                <div className="overflow-x-auto border-2 border-black bg-white" ref={itemTotalRef}>
-                                    <table className="w-full text-sm text-left font-sans text-slate-900 bg-white border-collapse">
-                                        <thead>
-                                            <tr className="border-b-2 border-black bg-slate-50">
-                                                <th className="p-2 font-bold text-slate-900 border-r border-slate-300">Item Name</th>
-                                                <th className="p-2 font-bold text-slate-900 text-center border-r border-slate-300">Scale Mean if Item Deleted</th>
-                                                <th className="p-2 font-bold text-slate-900 text-center border-r border-slate-300">Corrected Item-Total Correlation</th>
-                                                <th className="p-2 font-bold text-slate-900 text-center">Cronbach's Alpha if Item Deleted</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-200">
-                                            {result.items.map((item) => {
-                                                const shouldDrop = item.alphaIfDeleted > result.alpha;
-                                                const meanIfDeleted = result.scaleMean - item.mean;
-                                                return (
-                                                    <tr key={item.id} className={shouldDrop ? "bg-amber-50" : "hover:bg-slate-50"}>
-                                                        <td className="p-2 font-medium text-slate-900 border-r border-slate-200 flex items-center gap-2">
-                                                            {item.name}
-                                                            {shouldDrop && <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 py-0.5 rounded flex items-center gap-0.5 border border-red-200 ml-auto"><ArrowUpRight className="w-3 h-3"/> Improve?</span>}
-                                                        </td>
-                                                        <td className="p-2 text-center font-mono text-slate-700 border-r border-slate-200">{meanIfDeleted.toFixed(2)}</td>
-                                                        <td className="p-2 text-center font-mono text-slate-700 border-r border-slate-200">{formatSPSS(item.correctedItemTotalCorr)}</td>
-                                                        <td className={`p-2 text-center font-mono font-bold ${shouldDrop ? 'text-emerald-700' : 'text-slate-700'}`}>
-                                                            {formatSPSS(item.alphaIfDeleted)}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="text-xs text-slate-400 mt-2 italic">* "Improve?" indicates that removing this item would increase the scale's overall reliability.</div>
+                                <table id="table-case" className="w-full text-xs text-left border-collapse border border-slate-400 font-sans text-slate-900 bg-white">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-400">
+                                            <th className="p-2 border-r border-slate-400"></th>
+                                            <th className="p-2 text-center border-r border-slate-400">N</th>
+                                            <th className="p-2 text-center">%</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr className="border-b border-slate-200">
+                                            <td className="p-2 font-semibold border-r border-slate-400 bg-slate-50/50">Cases Valid</td>
+                                            <td className="p-2 text-center border-r border-slate-400">{result.nParticipants}</td>
+                                            <td className="p-2 text-center">{((result.nParticipants / (result.nParticipants + excludedCount)) * 100).toFixed(1)}</td>
+                                        </tr>
+                                        <tr className="border-b border-slate-200">
+                                            <td className="p-2 font-semibold border-r border-slate-400 bg-slate-50/50">Excluded<sup>a</sup></td>
+                                            <td className="p-2 text-center border-r border-slate-400">{excludedCount}</td>
+                                            <td className="p-2 text-center">{((excludedCount / (result.nParticipants + excludedCount)) * 100).toFixed(1)}</td>
+                                        </tr>
+                                        <tr className="border-t-2 border-slate-400 font-bold">
+                                            <td className="p-2 border-r border-slate-400 bg-slate-50/50">Total</td>
+                                            <td className="p-2 text-center border-r border-slate-400">{result.nParticipants + excludedCount}</td>
+                                            <td className="p-2 text-center">100.0</td>
+                                        </tr>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr><td colSpan={3} className="p-2 text-[10px] text-slate-500 italic">a. Listwise deletion based on all variables in the procedure.</td></tr>
+                                    </tfoot>
+                                </table>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* APA REPORT */}
-                                <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                                    <h4 className="text-sm font-semibold text-slate-900 mb-2 flex items-center gap-2"><FileText className="w-4 h-4" /> APA Style Report</h4>
-                                    <p className="text-sm text-slate-700 leading-relaxed font-serif select-all">{generateAPA()}</p>
+                            {/* 2. Reliability Statistics */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 max-w-sm">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-xs font-bold text-slate-900 uppercase">Reliability Statistics</h3>
+                                    <button onClick={() => handleCopyTable('rel-stats')} className={`p-1.5 rounded-md transition-all ${copied === 'rel-stats' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400 hover:bg-slate-100'}`}>
+                                        {copied === 'rel-stats' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                    </button>
                                 </div>
+                                <table id="table-rel-stats" className="w-full text-xs text-left border-collapse border border-slate-400 font-sans text-slate-900 bg-white">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-400">
+                                            <th className="p-2 text-center border-r border-slate-400">Cronbach's Alpha</th>
+                                            <th className="p-2 text-center">N of Items</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td className={`p-3 text-center border-r border-slate-400 font-black text-sm ${semanticColors.primary}`}>{result.alpha.toFixed(3)}</td>
+                                            <td className="p-3 text-center font-black text-sm">{result.nItems}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
 
-                                {/* AI ACTION */}
-                                <div className="flex items-center justify-center p-4">
-                                     <button onClick={handleAIAnalysis} disabled={aiAnalysis.isLoading} className="w-full h-full px-6 py-4 bg-gradient-to-r from-cyan-600 to-teal-600 text-white font-bold rounded-xl shadow-lg flex flex-col items-center justify-center gap-2 disabled:opacity-70 hover:shadow-xl transition-all">
-                                        <div className="flex items-center gap-2">
-                                            <Wand2 className="w-5 h-5" /> 
-                                            <span>Generate Professional Interpretation</span>
-                                        </div>
-                                        <span className="text-xs font-normal opacity-90">Powered by Gemini AI</span>
-                                     </button>
+                            {/* 3. Item-Total Statistics */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-xs font-bold text-slate-900 uppercase">Item-Total Statistics</h3>
+                                    <button onClick={() => handleCopyTable('item-stats')} className={`p-1.5 rounded-md transition-all ${copied === 'item-stats' ? 'bg-emerald-50 text-emerald-600' : 'text-slate-400 hover:bg-slate-100'}`}>
+                                        {copied === 'item-stats' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                                    </button>
                                 </div>
+                                <table id="table-item-stats" className="w-full text-[11px] text-left border-collapse border border-slate-400 font-sans text-slate-900 bg-white">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-400">
+                                            <th className="p-2 border-r border-slate-400 min-w-[120px]">Item</th>
+                                            <th className="p-2 text-center border-r border-slate-400">Scale Mean if Item Deleted</th>
+                                            <th className="p-2 text-center border-r border-slate-400">Scale Variance if Item Deleted</th>
+                                            <th className="p-2 text-center border-r border-slate-400">Corrected Item-Total Correlation</th>
+                                            <th className="p-2 text-center">Cronbach's Alpha if Item Deleted</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {result.items.map((item, idx) => {
+                                            const improves = item.alphaIfDeleted > result.alpha;
+                                            return (
+                                                <tr key={item.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} border-b border-slate-200 hover:bg-cyan-50/30 transition-colors`}>
+                                                    <td className="p-2 font-semibold border-r border-slate-400">{item.name}</td>
+                                                    <td className="p-2 text-center border-r border-slate-400">{(result.scaleMean - item.mean).toFixed(2)}</td>
+                                                    <td className="p-2 text-center border-r border-slate-400">{(result.totalVariance + item.variance - (2 * item.correctedItemTotalCorr * result.scaleStdDev * item.stdDev)).toFixed(2)}</td>
+                                                    <td className="p-2 text-center border-r border-slate-400">{item.correctedItemTotalCorr.toFixed(3)}</td>
+                                                    <td className={`p-2 text-center font-black ${improves ? 'text-rose-600 bg-rose-50/50' : 'text-slate-900'}`}>
+                                                        {item.alphaIfDeleted.toFixed(3)}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                    ) : (
-                        <div className="h-64 flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-300">
-                            <Info className="w-10 h-10 mb-3 opacity-50" />
-                            <p className="text-lg font-medium">Enter data to check reliability</p>
-                        </div>
-                    )}
-                </div>
 
-                {/* AI SECTION */}
-                <div ref={aiSectionRef} className="bg-gradient-to-br from-slate-50 to-cyan-50/30 p-8 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden scroll-mt-24">
-                    <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Wand2 className="w-48 h-48 text-cyan-500" /></div>
-                    <div className="relative z-10">
-                        <h2 className="text-xl font-semibold flex items-center gap-2 mb-4 text-slate-900"><Wand2 className="w-6 h-6 text-cyan-600" /> Interpretation</h2>
-                        {aiAnalysis.result ? (
-                            <div className="prose prose-slate bg-white p-6 rounded-lg border border-slate-200 max-w-none text-sm shadow-sm">
-                                <ReactMarkdown>{aiAnalysis.result}</ReactMarkdown>
-                            </div>
-                        ) : aiAnalysis.isLoading ? (
-                            <div className="flex items-center gap-2 text-cyan-700 animate-pulse"><div className="w-4 h-4 rounded-full bg-cyan-500 animate-bounce"></div> Analyzing consistency...</div>
-                        ) : (
-                            <p className="text-slate-500 italic">Generate statistics first, then click "Generate Professional Interpretation" above.</p>
-                        )}
+                        {/* APA Style Report Box */}
+                        <div className={`p-8 rounded-[2rem] border ${semanticColors.border} bg-slate-50/50 transition-all`}>
+                            <h4 className={`text-sm font-black uppercase tracking-widest ${semanticColors.primary} mb-4 flex items-center gap-2`}>
+                                <FileText className="w-5 h-5" />
+                                APA Style Report & Synthesis
+                            </h4>
+                            <p className="text-sm text-slate-700 leading-relaxed font-serif select-all italic">
+                                {generateAPAReport()}
+                            </p>
+                        </div>
+
+                        {/* Interpretation Section */}
+                        <div ref={aiSectionRef} className="scroll-mt-24">
+                            {aiAnalysis.result && (
+                                <div className={`p-10 rounded-[3rem] shadow-sm border ${semanticColors.border} bg-white/40 backdrop-blur-md relative overflow-hidden animate-in fade-in duration-700`}>
+                                     <div className="relative z-10">
+                                        <h3 className={`text-xl font-black uppercase tracking-[0.2em] ${semanticColors.primary} mb-8 flex items-center gap-3`}><Wand2 className="w-8 h-8" /> Statistical Consistency Audit</h3>
+                                        <div className={`prose prose-slate bg-white/70 p-10 rounded-[2rem] max-w-none text-sm shadow-inner leading-relaxed selection:${semanticColors.bg}/10`}><ReactMarkdown>{aiAnalysis.result}</ReactMarkdown></div>
+                                     </div>
+                                </div>
+                            )}
+                         </div>
                     </div>
-                </div>
-             </div>
+                ) : (
+                    <div className="h-[600px] bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
+                        <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4"><ShieldCheck className="w-8 h-8 text-cyan-200" /></div>
+                        <h3 className="text-xl font-bold text-slate-600 mb-2">Reliability Ready</h3>
+                        <p className="max-w-md text-center text-slate-500 text-sm">Open the spreadsheet and select 2+ items from your scale to calculate internal consistency.</p>
+                    </div>
+                )}
+            </div>
+
+            <DataModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} data={tableData} onDataChange={setTableData} />
         </div>
     );
 };

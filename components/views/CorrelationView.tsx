@@ -1,357 +1,287 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { TrendingUp, Wand2, RefreshCcw, Settings2, Trash2, Plus, Box, ArrowRight, Grid3X3, Layers, Activity } from 'lucide-react';
+import { TrendingUp, Wand2, RefreshCcw, Settings2, Trash2, Plus, Box, ArrowRight, Grid3X3, Layers, Activity, Table, FileSpreadsheet, ChevronDown, BookOpen, Sparkles, AlertCircle, HelpCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CorrelationHeatmap from '../CorrelationHeatmap';
 import StatisticalTable from '../StatisticalTable';
-import { parseInputData, calculateStatistics, runHypothesisTest, calculateCompositeVector } from '../../utils/statistics';
-import { analyzeCorrelation, analyzeHybridStrategy } from '../../services/geminiService';
-import { DataPoint, StatisticsResult, AnalysisState, CorrelationType, LikertConfig, HypothesisResult, AnalysisMode, DimensionInput, HybridResult } from '../../types';
-
-const SAMPLE_X = "10, 8, 13, 9, 11, 14, 6, 4, 12, 7, 5";
-const SAMPLE_Y = "8.04, 6.95, 7.58, 8.81, 8.33, 9.96, 7.24, 4.26, 10.84, 4.82, 5.68";
-const DEFAULT_LABELS_5 = ["Strongly Disagree", "Disagree", "Neutral", "Agree", "Strongly Agree"];
-const DEFAULT_LABELS_7 = ["Strongly Disagree", "Disagree", "Somewhat Disagree", "Neutral", "Somewhat Agree", "Agree", "Strongly Agree"];
+import DataModal from '../DataModal';
+import CalculationTrace from '../CalculationTrace';
+import { calculateStatistics } from '../../utils/statistics';
+import { analyzeCorrelation } from '../../services/geminiService';
+import { DataPoint, StatisticsResult, AnalysisState, CorrelationType, TableData, AnalysisMode } from '../../types';
 
 const CorrelationView: React.FC = () => {
   const [mode, setMode] = useState<AnalysisMode>('simple');
-  const [inputX, setInputX] = useState<string>(SAMPLE_X);
-  const [labelX, setLabelX] = useState<string>("Variable X");
-  const [constructName, setConstructName] = useState<string>("Composite Construct (IV)");
-  const [dimensions, setDimensions] = useState<DimensionInput[]>([
-    { id: '1', name: "Dimension 1", value: "" },
-    { id: '2', name: "Dimension 2", value: "" }
-  ]);
-  const [inputY, setInputY] = useState<string>(SAMPLE_Y);
-  const [labelY, setLabelY] = useState<string>("Variable Y");
+  const [tableData, setTableData] = useState<TableData>({
+    columns: [
+      { id: '1', name: 'Variable X', values: ['10', '8', '13', '9', '11', '14', '6', '4', '12', '7', '5'] },
+      { id: '2', name: 'Variable Y', values: ['8.04', '6.95', '7.58', '8.81', '8.33', '9.96', '7.24', '4.26', '10.84', '4.82', '5.68'] }
+    ],
+    rowCount: 11
+  });
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedXId, setSelectedXId] = useState<string>(tableData.columns[0].id);
+  const [selectedYId, setSelectedYId] = useState<string>(tableData.columns[1].id);
   const [testType, setTestType] = useState<CorrelationType>('pearson');
-  const [likertX, setLikertX] = useState<LikertConfig>({ enabled: false, points: 5, isReversed: false, labels: [...DEFAULT_LABELS_5] });
-  const [likertY, setLikertY] = useState<LikertConfig>({ enabled: false, points: 5, isReversed: false, labels: [...DEFAULT_LABELS_5] });
   const [stats, setStats] = useState<StatisticsResult | null>(null);
-  const [hybridResult, setHybridResult] = useState<HybridResult | null>(null);
-  const [hypothesis, setHypothesis] = useState<HypothesisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aiAnalysis, setAiAnalysis] = useState<AnalysisState>({ isLoading: false, result: null, error: null });
   const aiSectionRef = useRef<HTMLDivElement>(null);
 
-  const addDimension = () => setDimensions(prev => [...prev, { id: Date.now().toString(), name: `Dimension ${prev.length + 1}`, value: "" }]);
-  const removeDimension = (id: string) => dimensions.length > 1 && setDimensions(prev => prev.filter(d => d.id !== id));
-  const updateDimension = (id: string, field: 'name' | 'value', val: string) => setDimensions(prev => prev.map(d => d.id === id ? { ...d, [field]: val } : d));
-
-  const updateLikertConfig = (axis: 'x' | 'y', field: keyof LikertConfig, value: any) => {
-    const setter = axis === 'x' ? setLikertX : setLikertY;
-    const current = axis === 'x' ? likertX : likertY;
-    if (field === 'points') {
-      setter({ ...current, points: value, labels: value === 5 ? [...DEFAULT_LABELS_5] : [...DEFAULT_LABELS_7] });
-    } else {
-      setter({ ...current, [field]: value });
+  useEffect(() => {
+    if (mode === 'simple') {
+      if (tableData.columns.length >= 2) {
+        setSelectedXId(tableData.columns[0].id);
+        setSelectedYId(tableData.columns[1].id);
+      }
     }
-  };
+  }, [mode, tableData.columns]);
 
-  const updateLikertLabel = (axis: 'x' | 'y', index: number, newText: string) => {
-    const current = axis === 'x' ? likertX : likertY;
-    const setter = axis === 'x' ? setLikertX : setLikertY;
-    const newLabels = [...current.labels];
-    newLabels[index] = newText;
-    setter({ ...current, labels: newLabels });
-  };
-
-  const processSimpleData = useCallback(() => {
+  const handleCalculate = () => {
     setError(null);
-    const xValues = parseInputData(inputX, likertX);
-    const yValues = parseInputData(inputY, likertY);
-    if (xValues.length === 0 || yValues.length === 0) { setStats(null); setHypothesis(null); return; }
-    if (xValues.length !== yValues.length) setError(`Mismatch: X has ${xValues.length}, Y has ${yValues.length}. Using ${Math.min(xValues.length, yValues.length)}.`);
-    const points: DataPoint[] = xValues.slice(0, Math.min(xValues.length, yValues.length)).map((x, i) => ({ id: i, x, y: yValues[i] }));
+    setAiAnalysis({ isLoading: false, result: null, error: null });
+    const colX = tableData.columns.find(c => c.id === selectedXId);
+    const colY = tableData.columns.find(c => c.id === selectedYId);
+    if (!colX || !colY) {
+      setError("Variable selection mismatch.");
+      return;
+    }
+    const xValues = colX.values.map(v => parseFloat(v)).filter(v => !isNaN(v));
+    const yValues = colY.values.map(v => parseFloat(v)).filter(v => !isNaN(v));
+    if (xValues.length < 2 || yValues.length < 2) {
+      setError("Insufficient data points for correlation analysis.");
+      return;
+    }
+    const minLen = Math.min(xValues.length, yValues.length);
+    const points: DataPoint[] = xValues.slice(0, minLen).map((x, i) => ({ id: i, x, y: yValues[i] }));
     const calcStats = calculateStatistics(points);
     setStats(calcStats);
-    if (calcStats) setHypothesis(runHypothesisTest(testType === 'pearson' ? calcStats.pValue : calcStats.spearmanPValue, testType));
-  }, [inputX, inputY, likertX, likertY, testType]);
+  };
 
-  const processHybridData = useCallback(() => {
-    setError(null);
-    const yValues = parseInputData(inputY, likertY);
-    const dimParsed = dimensions.map(d => ({ ...d, parsed: parseInputData(d.value, likertX) }));
-    if (yValues.length === 0 || dimParsed.some(d => d.parsed.length === 0)) { setHybridResult(null); return; }
-    const minLen = Math.min(yValues.length, ...dimParsed.map(d => d.parsed.length));
-    if (minLen < 2) { setError("Insufficient data points (n < 2)."); setHybridResult(null); return; }
-    const yTrunc = yValues.slice(0, minLen);
-    const dimArrays = dimParsed.map(d => d.parsed.slice(0, minLen));
-    const compositeVector = calculateCompositeVector(dimArrays);
-    const compositeStats = calculateStatistics(compositeVector.map((x, i) => ({ id: i, x, y: yTrunc[i] })));
-    if (!compositeStats) { setError("Calculation failed."); return; }
-    const dimResults = dimParsed.map((d) => {
-      const dStats = calculateStatistics(d.parsed.slice(0, minLen).map((x, i) => ({ id: i, x, y: yTrunc[i] })));
-      return dStats ? { id: d.id, name: d.name, stats: dStats, hypothesis: runHypothesisTest(testType === 'pearson' ? dStats.pValue : dStats.spearmanPValue, testType) } : null;
-    }).filter(d => d !== null) as HybridResult['dimensions'];
-    setHybridResult({ composite: { name: constructName, stats: compositeStats, hypothesis: runHypothesisTest(testType === 'pearson' ? compositeStats.pValue : compositeStats.spearmanPValue, testType) }, dimensions: dimResults });
-  }, [inputY, dimensions, likertX, likertY, testType, constructName]);
-
-  const handleCalculate = () => mode === 'simple' ? processSimpleData() : processHybridData();
-
-  useEffect(() => { setAiAnalysis({ isLoading: false, result: null, error: null }); setError(null); mode === 'simple' ? setHybridResult(null) : setStats(null); }, [mode]);
-
-  const handleAIAnalysis = async () => {
+  const handleInterpretation = async () => {
+    if (!stats) return;
     setAiAnalysis({ isLoading: true, result: null, error: null });
     setTimeout(() => aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
     try {
-      const result = mode === 'simple' && stats ? await analyzeCorrelation(stats, labelX, labelY, testType) : 
-                     mode === 'hybrid' && hybridResult ? await analyzeHybridStrategy(hybridResult, labelY, testType) : "";
+      const colX = tableData.columns.find(c => c.id === selectedXId);
+      const colY = tableData.columns.find(c => c.id === selectedYId);
+      const result = await analyzeCorrelation(stats, colX?.name || "X", colY?.name || "Y", testType);
       setAiAnalysis({ isLoading: false, result, error: null });
-    } catch (err) { setAiAnalysis({ isLoading: false, result: null, error: "Failed to fetch AI analysis." }); }
+    } catch (err) {
+      setAiAnalysis({ isLoading: false, result: null, error: "Methodological synthesis error." });
+    }
   };
 
   const loadExample = () => {
-    setTestType('pearson');
-    setLikertX(p => ({ ...p, enabled: false }));
-    setLikertY(p => ({ ...p, enabled: false }));
-    if (mode === 'simple') { setInputX(SAMPLE_X); setInputY(SAMPLE_Y); setLabelX("Variable X"); setLabelY("Variable Y"); }
-    else { setConstructName("Job Satisfaction"); setInputY("8, 7, 9, 6, 8, 9, 5, 4, 8, 6"); setDimensions([{ id: '1', name: "Pay Satisfaction", value: "7, 6, 8, 5, 7, 8, 4, 3, 7, 5" }, { id: '2', name: "Work-Life Balance", value: "9, 8, 9, 7, 8, 9, 6, 5, 9, 7" }, { id: '3', name: "Management Trust", value: "5, 4, 6, 3, 5, 6, 2, 2, 5, 4" }]); }
-    setTimeout(() => document.getElementById('run-btn')?.click(), 100);
-  };
-
-  const renderLikertConfig = (axis: 'x' | 'y') => {
-    const config = axis === 'x' ? likertX : likertY;
-    if (!config.enabled) return null;
-    return (
-      <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-             <span className="text-xs font-semibold text-slate-500 uppercase">Scale Points</span>
-             <div className="flex bg-white rounded-md shadow-sm border border-slate-200 p-0.5">
-                <button onClick={() => updateLikertConfig(axis, 'points', 5)} className={`px-2 py-0.5 text-[10px] font-medium rounded ${config.points === 5 ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600'}`}>5-Pt</button>
-                <button onClick={() => updateLikertConfig(axis, 'points', 7)} className={`px-2 py-0.5 text-[10px] font-medium rounded ${config.points === 7 ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600'}`}>7-Pt</button>
-             </div>
-          </div>
-          <div className="grid grid-cols-1 gap-2">
-            {config.labels.map((l, i) => (
-                <div key={i} className="flex gap-2 items-center"><span className="text-[10px] w-3 text-right text-slate-400">{config.isReversed ? config.points - i : i + 1}</span><input value={l} onChange={(e) => updateLikertLabel(axis, i, e.target.value)} className="w-full text-xs border border-slate-200 bg-white rounded px-2 py-1 text-slate-900" /></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+     setTableData({
+        columns: [
+            { id: '1', name: 'Exam_Score', values: ['85', '92', '78', '88', '95', '70', '82', '90', '75', '85'] },
+            { id: '2', name: 'Study_Hours', values: ['10', '15', '8', '12', '20', '5', '11', '14', '7', '10'] }
+        ],
+        rowCount: 10
+     });
+     setSelectedXId('1');
+     setSelectedYId('2');
+     setTimeout(() => handleCalculate(), 100);
   };
 
   const getInterpretationText = (r: number) => {
       const abs = Math.abs(r);
-      if (abs > 0.8) return "Very Strong";
-      if (abs > 0.6) return "Strong";
-      if (abs > 0.4) return "Moderate";
-      if (abs > 0.2) return "Weak";
-      return "Negligible";
-  }
-
-  const getInterpretationColor = (r: number) => {
-      const abs = Math.abs(r);
-      if (abs > 0.6) return "text-indigo-700";
-      if (abs > 0.4) return "text-purple-600";
-      return "text-slate-600";
+      const strength = abs > 0.8 ? "Very Strong" : abs > 0.6 ? "Strong" : abs > 0.4 ? "Moderate" : abs > 0.2 ? "Weak" : "Negligible";
+      const direction = r > 0 ? "Positive" : r < 0 ? "Negative" : "None";
+      return { strength, direction };
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500 font-sans">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 animate-in fade-in slide-in-from-bottom-4 duration-700 font-sans">
         
         {/* INPUT COLUMN */}
         <div className="lg:col-span-4 xl:col-span-3">
-            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 sticky top-24">
+            <div className="bg-zinc-900/40 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 sticky top-24 shadow-2xl">
                 
-                {/* Toggles */}
-                <div className="bg-slate-100 p-1 rounded-lg flex mb-4">
-                    <button onClick={() => setMode('simple')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${mode === 'simple' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <ArrowRight className={`w-3 h-3 inline mr-1 ${mode === 'simple' ? 'block' : 'hidden'}`} />Simple
+                {/* Mode Toggle */}
+                <div className="bg-black/50 p-1 rounded-2xl flex border border-white/5 mb-8">
+                    <button 
+                      onClick={() => setMode('simple')} 
+                      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all ${mode === 'simple' ? 'bg-white text-black shadow-xl' : 'text-zinc-600 hover:text-zinc-400'}`}
+                    >
+                      Bivariate
                     </button>
-                    <button onClick={() => setMode('hybrid')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${mode === 'hybrid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-                        <Layers className={`w-3 h-3 inline mr-1 ${mode === 'hybrid' ? 'block' : 'hidden'}`} />Hybrid
+                    <button 
+                      onClick={() => setMode('advanced')} 
+                      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-[0.2em] rounded-xl transition-all ${mode === 'advanced' ? 'bg-white text-black shadow-xl' : 'text-zinc-600 hover:text-zinc-400'}`}
+                    >
+                      Multivariate
                     </button>
                 </div>
 
-                <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
-                     <button onClick={() => setTestType('pearson')} className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${testType === 'pearson' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Pearson</button>
-                     <button onClick={() => setTestType('spearman')} className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${testType === 'spearman' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Spearman</button>
+                <div className="mb-8">
+                    <button 
+                        onClick={() => setIsModalOpen(true)}
+                        className="w-full p-6 bg-black/40 border-2 border-dashed border-white/10 rounded-3xl flex flex-col items-center justify-center gap-3 group hover:border-white/40 hover:bg-white/5 transition-all duration-500"
+                    >
+                        <FileSpreadsheet className="w-8 h-8 text-zinc-700 group-hover:text-white transition-all duration-500" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500 group-hover:text-white">
+                          Edit Dataset
+                        </span>
+                    </button>
                 </div>
 
-                {/* Input Fields */}
-                <div className="space-y-6">
-                    {/* Var X Input */}
-                    <div>
-                        <div className="flex justify-between items-center mb-2">
-                             <label className="text-xs font-bold text-slate-500 uppercase">{mode === 'simple' ? 'Variable X' : 'Dimensions (IV)'}</label>
-                             <button onClick={() => updateLikertConfig('x', 'enabled', !likertX.enabled)} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-colors ${likertX.enabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
-                                <Settings2 className="w-3 h-3" /> Likert
-                             </button>
+                <div className="space-y-8">
+                    {mode === 'advanced' && (
+                        <div className="flex items-center gap-2 border-b border-white/5 pb-4">
+                            <button onClick={() => setTestType('pearson')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${testType === 'pearson' ? 'border-white text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}>Pearson r</button>
+                            <button onClick={() => setTestType('spearman')} className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest border-b-2 transition-all ${testType === 'spearman' ? 'border-white text-white' : 'border-transparent text-zinc-600 hover:text-zinc-400'}`}>Spearman ρ</button>
                         </div>
-                        {mode === 'simple' ? (
-                            <>
-                                <input value={labelX} onChange={e => setLabelX(e.target.value)} className="w-full text-sm px-3 py-2 bg-white border border-slate-200 rounded-lg mb-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 outline-none text-slate-700 font-medium placeholder-slate-400" placeholder="Label (e.g. Height)" />
-                                <textarea value={inputX} onChange={e => setInputX(e.target.value)} className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-600 focus:ring-2 focus:ring-indigo-100 outline-none resize-none placeholder:text-slate-400" placeholder="10, 20, 30..." />
-                            </>
-                        ) : (
-                            <div className="space-y-3">
-                                <input value={constructName} onChange={e => setConstructName(e.target.value)} className="w-full px-3 py-2 bg-indigo-50 border-indigo-200 rounded-lg text-xs font-bold text-indigo-900" placeholder="Construct Name" />
-                                <div className="space-y-3 pl-2 border-l-2 border-slate-100">
-                                    {dimensions.map((d) => (
-                                        <div key={d.id} className="group relative">
-                                            <input value={d.name} onChange={e => updateDimension(d.id, 'name', e.target.value)} className="w-full bg-transparent text-xs font-medium text-slate-700 mb-1 border-none p-0 focus:ring-0" placeholder="Dimension Name" />
-                                            <textarea value={d.value} onChange={e => updateDimension(d.id, 'value', e.target.value)} className="w-full h-16 p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs resize-none text-slate-600 focus:ring-1 focus:ring-indigo-200" placeholder="Data..." />
-                                            {dimensions.length > 1 && <button onClick={() => removeDimension(d.id)} className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-opacity"><Trash2 className="w-3 h-3" /></button>}
-                                        </div>
-                                    ))}
-                                    <button onClick={addDimension} className="w-full py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded flex justify-center items-center gap-1 hover:bg-indigo-100 transition-colors"><Plus className="w-3 h-3" /> Add Dimension</button>
-                                </div>
+                    )}
+
+                    <div className="space-y-6">
+                        <div>
+                            <label className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-3 block">Independent Variable (X)</label>
+                            <div className="relative">
+                                <select value={selectedXId} onChange={(e) => setSelectedXId(e.target.value)} className="w-full pl-4 pr-10 py-3 bg-black/50 border border-white/10 rounded-2xl text-xs font-bold text-white appearance-none outline-none focus:ring-2 focus:ring-white/20 transition-all">
+                                    {tableData.columns.map(col => <option key={col.id} value={col.id}>{col.name}</option>)}
+                                </select>
+                                <ChevronDown className="w-4 h-4 text-zinc-600 absolute right-4 top-3.5 pointer-events-none" />
                             </div>
-                        )}
-                        {renderLikertConfig('x')}
-                    </div>
-
-                    {/* Var Y Input */}
-                    <div>
-                         <div className="flex justify-between items-center mb-2">
-                             <label className="text-xs font-bold text-slate-500 uppercase">{mode === 'simple' ? 'Variable Y' : 'Dependent Variable'}</label>
-                             <button onClick={() => updateLikertConfig('y', 'enabled', !likertY.enabled)} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-colors ${likertY.enabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
-                                <Settings2 className="w-3 h-3" /> Likert
-                             </button>
                         </div>
-                        <input value={labelY} onChange={e => setLabelY(e.target.value)} className="w-full text-sm px-3 py-2 bg-white border border-slate-200 rounded-lg mb-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 outline-none text-slate-700 font-medium placeholder-slate-400" placeholder="Label (e.g. Weight)" />
-                        <textarea value={inputY} onChange={e => setInputY(e.target.value)} className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-600 focus:ring-2 focus:ring-indigo-100 outline-none resize-none placeholder:text-slate-400" placeholder="10, 20, 30..." />
-                        {renderLikertConfig('y')}
+                        <div>
+                            <label className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.2em] mb-3 block">Dependent Variable (Y)</label>
+                            <div className="relative">
+                                <select value={selectedYId} onChange={(e) => setSelectedYId(e.target.value)} className="w-full pl-4 pr-10 py-3 bg-black/50 border border-white/10 rounded-2xl text-xs font-bold text-white appearance-none outline-none focus:ring-2 focus:ring-white/20 transition-all">
+                                    {tableData.columns.map(col => <option key={col.id} value={col.id}>{col.name}</option>)}
+                                </select>
+                                <ChevronDown className="w-4 h-4 text-zinc-600 absolute right-4 top-3.5 pointer-events-none" />
+                            </div>
+                        </div>
                     </div>
-                </div>
 
-                {/* Footer Actions */}
-                <div className="mt-8 pt-4 border-t border-slate-100">
-                    <button id="run-btn" onClick={handleCalculate} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200/50 transition-all flex items-center justify-center gap-2">
-                        Run Analysis
-                    </button>
-                    {error && <div className="mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-100 flex items-start gap-2"><div className="mt-0.5"><Trash2 className="w-3 h-3"/></div>{error}</div>}
-                    <button onClick={loadExample} className="w-full mt-3 py-2 text-xs font-medium text-slate-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-1">
-                        <RefreshCcw className="w-3 h-3" /> Load Example Data
-                    </button>
+                    <div className="pt-8 border-t border-white/5">
+                        <button onClick={handleCalculate} className="w-full py-4 bg-white hover:bg-zinc-200 text-black font-black uppercase tracking-[0.2em] rounded-2xl shadow-[0_10px_30px_rgba(255,255,255,0.1)] transition-all active:scale-95 flex items-center justify-center gap-3">
+                          <Activity className="w-5 h-5" /> {stats ? 'Recalculate Results' : 'Run Correlation Analysis'}
+                        </button>
+                        {error && <div className="mt-4 p-4 bg-red-500/10 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-2xl border border-red-500/20 flex gap-3">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          {error}
+                        </div>}
+                        <button onClick={loadExample} className="w-full mt-4 py-3 text-[10px] font-black uppercase tracking-widest text-zinc-600 hover:text-white transition-all flex items-center justify-center gap-2">
+                          <RefreshCcw className="w-3 h-3" /> Load Sample Data
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
 
         {/* RESULTS COLUMN */}
-        <div className="lg:col-span-8 xl:col-span-9 space-y-6">
-            
-            {(stats || hybridResult) ? (
+        <div className="lg:col-span-8 xl:col-span-9 space-y-10">
+            {stats ? (
                  <>
-                    {/* Header */}
-                    <div className="flex items-center gap-2 mb-2">
-                        <Activity className="w-5 h-5 text-indigo-600" />
-                        <h2 className="text-lg font-bold text-slate-800">Statistical Results <span className="text-slate-400 font-normal ml-2">| {testType === 'pearson' ? 'Pearson' : 'Spearman'}</span></h2>
+                    <div className="flex items-center gap-3 mb-2">
+                        <Activity className="w-6 h-6 text-white" />
+                        <h2 className="text-2xl font-black text-white tracking-tighter uppercase italic">Correlation Results Summary <span className="text-zinc-600 font-light not-italic ml-4">| Bivariate Analysis</span></h2>
                     </div>
 
-                    {/* Hero Card */}
-                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8 animate-in slide-in-from-bottom-4 duration-500">
-                        <div className="flex flex-col sm:flex-row items-center gap-8 text-center sm:text-left">
-                            {/* Circle Chart */}
-                            <div className="relative w-36 h-36 shrink-0 flex items-center justify-center min-w-[9rem] min-h-[9rem]">
-                                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 144 144" preserveAspectRatio="xMidYMid meet">
-                                    <circle cx="72" cy="72" r="60" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-indigo-50" />
-                                    <circle 
-                                        cx="72" cy="72" r="60" 
-                                        stroke="currentColor" strokeWidth="8" fill="transparent" 
-                                        strokeDasharray={377} 
-                                        strokeDashoffset={377 - (377 * Math.abs(mode === 'simple' && stats ? stats.r : hybridResult!.composite.stats.r))} 
-                                        className="text-indigo-600 transition-all duration-1000 ease-out" 
-                                        strokeLinecap="round" 
-                                    />
-                                </svg>
-                                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-4xl font-bold text-indigo-700 tracking-tighter">
-                                        {(mode === 'simple' && stats ? (testType === 'pearson' ? stats.r : stats.spearmanRho) : (testType === 'pearson' ? hybridResult!.composite.stats.r : hybridResult!.composite.stats.spearmanRho)).toFixed(3)}
-                                    </span>
+                    {/* Statistical Interpretation Card */}
+                    <div className="bg-white text-black p-10 rounded-[3rem] shadow-[0_0_80px_rgba(255,255,255,0.1)] flex flex-col md:flex-row items-center justify-between gap-10 relative overflow-hidden animate-in zoom-in-95 duration-700">
+                        <div className="absolute top-0 right-0 w-80 h-80 bg-black/5 rounded-full blur-[100px] translate-x-1/2 -translate-y-1/2"></div>
+                        
+                        <div className="flex flex-col sm:flex-row items-center gap-10 z-10">
+                            <div className="relative w-40 h-40 shrink-0 flex items-center justify-center bg-black/5 rounded-[2rem] border border-black/5 shadow-inner">
+                                <div className="text-center">
+                                    <div className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-1">Index</div>
+                                    <div className="text-5xl font-black tracking-tighter text-black">{(testType === 'pearson' ? stats.r : stats.spearmanRho).toFixed(3)}</div>
                                 </div>
                             </div>
-                            
-                            {/* Text Summary */}
-                            <div>
-                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Coefficient</div>
-                                <div className={`text-4xl font-bold mb-1 ${getInterpretationColor(mode === 'simple' && stats ? stats.r : hybridResult!.composite.stats.r)}`}>
-                                    {getInterpretationText(mode === 'simple' && stats ? stats.r : hybridResult!.composite.stats.r)}
+                            <div className="max-w-md">
+                                <div className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-500 mb-3 flex items-center gap-2">
+                                  <Sparkles className="w-3.5 h-3.5 text-zinc-400" /> Statistical Results
                                 </div>
-                                <div className="text-slate-500 font-medium">Correlation</div>
+                                <h3 className="text-3xl font-black mb-4 tracking-tight text-black">
+                                  {getInterpretationText(testType === 'pearson' ? stats.r : stats.spearmanRho).strength} {getInterpretationText(testType === 'pearson' ? stats.r : stats.spearmanRho).direction} Correlation
+                                </h3>
+                                <p className="text-zinc-600 text-sm leading-relaxed font-medium italic">
+                                  The analysis indicates a {getInterpretationText(testType === 'pearson' ? stats.r : stats.spearmanRho).strength.toLowerCase()} {getInterpretationText(testType === 'pearson' ? stats.r : stats.spearmanRho).direction.toLowerCase()} relationship between the variables.
+                                </p>
                             </div>
                         </div>
 
-                        {/* Analyze Button */}
                         <button 
-                            onClick={handleAIAnalysis} 
-                            disabled={aiAnalysis.isLoading} 
-                            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 group disabled:opacity-70"
+                          onClick={handleInterpretation} 
+                          disabled={aiAnalysis.isLoading} 
+                          className="px-10 py-5 bg-black text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-2xl flex items-center gap-3 group disabled:opacity-70 transition-all hover:scale-105 active:scale-95 shrink-0"
                         >
-                            <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" /> 
-                            {aiAnalysis.isLoading ? 'Analyzing...' : 'Analyze'}
+                          <Wand2 className="w-5 h-5" /> 
+                          {aiAnalysis.isLoading ? 'Processing...' : 'Generate Statistical Analysis'}
                         </button>
                     </div>
 
-                    {/* Secondary Metrics Grid */}
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                        <div className="grid grid-cols-2 gap-6">
-                            {/* Sample Size */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center animate-in slide-in-from-bottom-6 duration-500 delay-100">
-                                <div className="text-xs font-bold text-slate-400 uppercase mb-3">Sample Size (N)</div>
-                                <div className="text-4xl font-medium text-slate-700">{mode === 'simple' && stats ? stats.n : hybridResult!.composite.stats.n}</div>
+                    <CalculationTrace type="correlation" data={stats} />
+
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                        <div className="grid grid-cols-2 gap-8">
+                            <div className="bg-zinc-900/40 backdrop-blur-xl p-8 rounded-[2rem] border border-white/5 flex flex-col justify-center shadow-inner">
+                                <div className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-4">Sample Size (N)</div>
+                                <div className="text-5xl font-black text-white tracking-tighter">{stats.n}</div>
+                                <p className="text-[10px] text-zinc-700 mt-4 font-bold uppercase tracking-widest">Valid Observations</p>
                             </div>
-                            {/* P-Value */}
-                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center animate-in slide-in-from-bottom-6 duration-500 delay-150">
-                                <div className="text-xs font-bold text-slate-400 uppercase mb-3">P-Value</div>
-                                <div className="text-4xl font-medium text-slate-700">
-                                    {(mode === 'simple' && stats ? stats.pValue : hybridResult!.composite.stats.pValue).toFixed(4)}
+                            <div className="bg-zinc-900/40 backdrop-blur-xl p-8 rounded-[2rem] border border-white/5 flex flex-col justify-center shadow-inner">
+                                <div className="text-[10px] font-black text-zinc-600 uppercase tracking-[0.3em] mb-4 flex items-center gap-2">
+                                  P-Value 
+                                  <HelpCircle className="w-3 h-3 text-zinc-800" />
                                 </div>
-                                <div className={`text-sm font-bold mt-2 ${(mode === 'simple' && stats ? stats.pValue : hybridResult!.composite.stats.pValue) < 0.05 ? 'text-emerald-500' : 'text-amber-500'}`}>
-                                    {(mode === 'simple' && stats ? stats.pValue : hybridResult!.composite.stats.pValue) < 0.05 ? 'Significant' : 'Not Significant'}
+                                <div className="text-5xl font-black text-white tracking-tighter">{stats.pValue.toFixed(4)}</div>
+                                <div className={`text-[9px] font-black mt-4 px-3 py-1 rounded-full border tracking-[0.2em] text-center transition-all duration-500 ${stats.pValue < 0.05 ? 'bg-emerald-500 text-white border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'bg-rose-950/30 text-rose-500 border-rose-900/50'}`}>
+                                  {stats.pValue < 0.05 ? 'STATISTICALLY SIGNIFICANT' : 'NOT SIGNIFICANT'}
                                 </div>
                             </div>
                         </div>
-
-                        {/* Heatmap Area */}
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-6 duration-500 delay-200">
-                            {mode === 'simple' && stats ? (
-                                <CorrelationHeatmap stats={stats} labelX={labelX} labelY={labelY} testType={testType} />
-                            ) : (
-                                <div className="p-6 h-full flex flex-col justify-center items-center text-center">
-                                    <Grid3X3 className="w-8 h-8 text-indigo-200 mb-2" />
-                                    <div className="text-sm font-medium text-slate-400">Heatmap available in Simple Mode</div>
-                                </div>
-                            )}
+                        <div className="overflow-hidden">
+                             <CorrelationHeatmap stats={stats} labelX={tableData.columns.find(c => c.id === selectedXId)?.name || "X"} labelY={tableData.columns.find(c => c.id === selectedYId)?.name || "Y"} testType={testType} />
                         </div>
                     </div>
 
-                    {/* Detailed Analysis Section */}
-                    <div className="grid grid-cols-1 gap-6">
-                         <StatisticalTable mode={mode} testType={testType} stats={stats} hybridResult={hybridResult} labelX={labelX} labelY={labelY} />
-                         
-                         {/* AI Result Area */}
+                    <div className="grid grid-cols-1 gap-10">
+                         <StatisticalTable mode="simple" testType={testType} stats={stats} labelX={tableData.columns.find(c => c.id === selectedXId)?.name} labelY={tableData.columns.find(c => c.id === selectedYId)?.name} />
                          <div ref={aiSectionRef} className="scroll-mt-24">
                             {aiAnalysis.result && (
-                                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-8 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden animate-in fade-in duration-700">
-                                     <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none"><Wand2 className="w-64 h-64 text-indigo-600" /></div>
+                                <div className="bg-white text-black p-12 rounded-[3rem] shadow-2xl relative overflow-hidden animate-in fade-in slide-in-from-bottom-10 duration-1000 border border-zinc-200">
                                      <div className="relative z-10">
-                                        <h3 className="text-xl font-bold text-indigo-900 mb-6 flex items-center gap-2"><Wand2 className="w-6 h-6" /> ANALYSIS RESULT</h3>
-                                        <div className="prose prose-indigo bg-white/60 p-6 rounded-xl border border-indigo-50/50 max-w-none text-sm shadow-sm">
-                                            <ReactMarkdown>{aiAnalysis.result}</ReactMarkdown>
-                                        </div>
+                                        <h3 className="text-2xl font-black text-black mb-10 flex items-center gap-4 uppercase italic tracking-tighter"><Wand2 className="w-8 h-8 text-zinc-400" /> Methodological Analysis</h3>
+                                        <div className="prose prose-zinc bg-black/5 p-10 rounded-[2rem] max-w-none text-base shadow-inner leading-relaxed text-black selection:bg-black/10"><ReactMarkdown>{aiAnalysis.result}</ReactMarkdown></div>
                                      </div>
+                                     <div className="absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-zinc-200 to-transparent"></div>
                                 </div>
-                            )}
-                            {aiAnalysis.error && (
-                                <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm">{aiAnalysis.error}</div>
                             )}
                          </div>
                     </div>
                  </>
             ) : (
-                // EMPTY STATE
-                <div className="h-[600px] bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
-                    <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4">
-                        <TrendingUp className="w-8 h-8 text-indigo-200" />
+                <div className="h-[650px] bg-black/40 rounded-[3rem] border-2 border-dashed border-white/5 flex flex-col items-center justify-center text-zinc-700 p-12 text-center animate-in fade-in duration-1000">
+                    <div className="w-24 h-24 bg-zinc-900 rounded-[2rem] shadow-2xl flex items-center justify-center mb-10 ring-1 ring-white/10 group hover:scale-110 transition-all duration-700">
+                      <TrendingUp className="w-12 h-12 text-zinc-700 group-hover:text-white transition-all" />
                     </div>
-                    <h3 className="text-xl font-bold text-slate-600 mb-2">Ready to Analyze</h3>
-                    <p className="max-w-md text-center text-slate-500">Enter your data in the sidebar and click "Run Analysis" to generate professional statistical reports.</p>
+                    <h3 className="text-4xl font-black text-white mb-4 tracking-tighter uppercase italic">Ready for Analysis</h3>
+                    <p className="max-w-md text-zinc-500 text-sm leading-relaxed mb-12 font-medium">
+                      Define your variables and input your observation data. The tool will calculate the Pearson r or Spearman ρ correlation coefficients to determine relationship strength.
+                    </p>
+                    <div className="flex gap-6">
+                      <button 
+                        onClick={() => setIsModalOpen(true)}
+                        className="px-8 py-3.5 bg-zinc-900 border border-white/10 text-white font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl shadow-xl hover:bg-zinc-800 transition-all flex items-center gap-3"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" /> 1. Open Data Editor
+                      </button>
+                      <button 
+                        onClick={handleCalculate}
+                        className="px-10 py-3.5 bg-white text-black font-black uppercase tracking-[0.2em] text-[10px] rounded-2xl shadow-[0_10px_30px_rgba(255,255,255,0.15)] hover:bg-zinc-200 transition-all flex items-center gap-3"
+                      >
+                        <Activity className="w-4 h-4" /> 2. Calculate Statistics
+                      </button>
+                    </div>
                 </div>
             )}
         </div>
+
+        <DataModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} data={tableData} onDataChange={setTableData} mode={mode} />
     </div>
   );
 };
