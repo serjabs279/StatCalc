@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { BarChart3, Plus, Trash2, Wand2, Info, AlertCircle, Settings2, FileText, Check, Copy } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -94,10 +93,10 @@ const AnovaView: React.FC = () => {
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 animate-in fade-in duration-500">
             {/* INPUT COL */}
-            <div className="lg:col-span-4 xl:col-span-3 space-y-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
+            <div className="md:col-span-4 xl:col-span-3 space-y-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 md:sticky md:top-24 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
                     <div className="flex justify-between items-center mb-6">
                         <h3 className="font-semibold text-slate-700">Groups</h3>
                         <button onClick={() => setLikertConfig(c => ({...c, enabled: !c.enabled}))} className={`text-xs px-2 py-0.5 rounded-full flex items-center gap-1 ${likertConfig.enabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}><Settings2 className="w-3 h-3" /> Likert</button>
@@ -121,7 +120,7 @@ const AnovaView: React.FC = () => {
             </div>
 
             {/* RESULTS COL */}
-            <div className="lg:col-span-8 xl:col-span-9 space-y-6">
+            <div className="md:col-span-8 xl:col-span-9 space-y-6">
                 <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
                     <h2 className="text-lg font-semibold mb-8 flex items-center gap-2"><BarChart3 className="w-5 h-5 text-emerald-500" /> One-Way ANOVA Results</h2>
                     

@@ -110,7 +110,7 @@ ${sigDims.length > 0
 *(Note: This is an auto-generated offline analysis. Add a generic Google Gemini API Key for deeper AI-powered insights.)*`;
 };
 
-const generateLocalReliabilityAnalysis = (result: ReliabilityResult): string => {
+const generateLocalReliabilityAnalysis = (result: ReliabilityResult, scaleName?: string): string => {
     let interpretation = "Unacceptable";
     if (result.alpha >= 0.9) interpretation = "Excellent";
     else if (result.alpha >= 0.8) interpretation = "Good";
@@ -119,9 +119,10 @@ const generateLocalReliabilityAnalysis = (result: ReliabilityResult): string => 
     else if (result.alpha >= 0.5) interpretation = "Poor";
 
     const problematicItems = result.items.filter(i => i.alphaIfDeleted > result.alpha);
+    const contextName = scaleName ? `"${scaleName}"` : `the ${result.nItems}-item scale`;
 
     return `### 1. Reliability Assessment (Offline Mode)
-The internal consistency of the ${result.nItems}-item scale was assessed using Cronbach's Alpha. The obtained alpha coefficient is **${result.alpha.toFixed(3)}**, which indicates **${interpretation}** reliability.
+The internal consistency of ${contextName} was assessed using Cronbach's Alpha. The obtained alpha coefficient is **${result.alpha.toFixed(3)}**, which indicates **${interpretation}** reliability.
 
 ### 2. Item Analysis
 ${problematicItems.length > 0 
@@ -210,7 +211,7 @@ export const analyzeCorrelation = async (
       ###1. DO NOT ADD jargons and do not use figurative language
       ###2. follow the conditions below:
           CONDITIONS:
-                                      You must analyze the data using exactly these 4 systematic stages—ensure these are emphasized and clearly distinct:
+                                      You must analyze the data using exactly these 4 systematic stages—ensure these are emphasized and clearly distinct and make sure you these 4 words in bold or strong form:
                       1. DESCRIPTIVE CHARACTERIZATION
                       2. INFERENTIAL ASSESSMENT
                       3. CONTEXTUAL SYNTHESIS
@@ -322,6 +323,23 @@ export const analyzeAnova = async (
             Compare the means of the groups. Which group performed highest/lowest?
             ### 3. Conclusion
             Practical implication of these differences (or lack thereof).
+
+
+      IMPORTANT: Do this when analyzing
+      ###1. DO NOT ADD jargons and do not use figurative language
+      ###2. follow the conditions below:
+          CONDITIONS:
+                                      You must analyze the data using exactly these 4 systematic stages—ensure these are emphasized and clearly distinct and make sure you these 4 words in bold or strong form:
+                      1. DESCRIPTIVE CHARACTERIZATION
+                      2. INFERENTIAL ASSESSMENT
+                      3. CONTEXTUAL SYNTHESIS
+                      4. EVALUATIVE CRITIQUE
+
+                      STRICT RESEARCH PROTOCOL:
+                      - NO PERSONAL PRONOUNS: In formal research, there is no "I," "me," "my," "we," "us," or "you."
+                      - LABELING: Always refer to the parties involved as "the researcher(s)" or "the respondent(s)."
+                      - HUMANIZED TONE: Avoid "perfect" bot-like AI prose. Make it sound like a busy, real-life researcher wrote it. A natural flow is better than "gratified" proper grammar. If there's a slight sentence construction quirk, that's fine—it adds to the human feel.
+                      - NO AI CLICHÉS: Do not start with "In conclusion" or "Overall." Just dive into the analysis.
         `;
 
         const response = await ai.models.generateContent({
@@ -369,6 +387,23 @@ export const analyzeDescriptives = async (
             Discuss skewness/kurtosis or dominant categories.
             ### 3. Reporting
             Provide a standard academic reporting sentence.
+
+
+      IMPORTANT: Do this when analyzing
+      ###1. DO NOT ADD jargons and do not use figurative language
+      ###2. follow the conditions below:
+          CONDITIONS:
+                                      You must analyze the data using exactly these 4 systematic stages—ensure these are emphasized and clearly distinct and make sure you these 4 words in bold or strong form:
+                      1. DESCRIPTIVE CHARACTERIZATION
+                      2. INFERENTIAL ASSESSMENT
+                      3. CONTEXTUAL SYNTHESIS
+                      4. EVALUATIVE CRITIQUE
+
+                      STRICT RESEARCH PROTOCOL:
+                      - NO PERSONAL PRONOUNS: In formal research, there is no "I," "me," "my," "we," "us," or "you."
+                      - LABELING: Always refer to the parties involved as "the researcher(s)" or "the respondent(s)."
+                      - HUMANIZED TONE: Avoid "perfect" bot-like AI prose. Make it sound like a busy, real-life researcher wrote it. A natural flow is better than "gratified" proper grammar. If there's a slight sentence construction quirk, that's fine—it adds to the human feel.
+                      - NO AI CLICHÉS: Do not start with "In conclusion" or "Overall." Just dive into the analysis.
         `;
 
         const response = await ai.models.generateContent({
@@ -384,11 +419,12 @@ export const analyzeDescriptives = async (
 };
 
 export const analyzeReliability = async (
-    result: ReliabilityResult
+    result: ReliabilityResult,
+    scaleName: string
 ): Promise<string> => {
     try {
         const ai = getGeminiClient();
-        if (!ai) return generateLocalReliabilityAnalysis(result);
+        if (!ai) return generateLocalReliabilityAnalysis(result, scaleName);
 
         const alphaSymbol = "***α***";
 
@@ -400,10 +436,11 @@ export const analyzeReliability = async (
 
         const prompt = `
             Role: Psychometrician / Senior Analyst.
-            Task: Interpret Cronbach's Alpha Reliability Analysis.
+            Task: Interpret Cronbach's Alpha Reliability Analysis for the scale "${scaleName}".
             Formatting: Bold italics for ${alphaSymbol}. No LaTeX.
 
             Data Context:
+            - Scale Name: ${scaleName}
             - Cronbach's Alpha: ${result.alpha.toFixed(3)}
             - Number of Items: ${result.nItems}
             - Sample Size: ${result.nParticipants}
@@ -411,7 +448,7 @@ export const analyzeReliability = async (
 
             Structure:
             ### 1. Reliability Assessment
-            State the alpha value and interpret internal consistency (Excellent >.9, Good >.8, Acceptable >.7, etc.).
+            State the alpha value and interpret internal consistency (Excellent >.9, Good >.8, Acceptable >.7, etc.) for "${scaleName}".
             ### 2. Item-Level Analysis
             Discuss if the scale is performing well. Specifically mention if any items should be removed to improve reliability.
             ### 3. Conclusion
@@ -423,9 +460,9 @@ export const analyzeReliability = async (
             contents: prompt,
         });
 
-        return response.text || generateLocalReliabilityAnalysis(result);
+        return response.text || generateLocalReliabilityAnalysis(result, scaleName);
     } catch (error: any) {
         console.warn("Gemini API Error, falling back to local:", error);
-        return generateLocalReliabilityAnalysis(result);
+        return generateLocalReliabilityAnalysis(result, scaleName);
     }
 };

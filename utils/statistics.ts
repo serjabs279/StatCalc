@@ -455,10 +455,22 @@ export const parseMatrixData = (input: string): number[][] | null => {
     
     for (const row of rows) {
         if (!row.trim()) continue;
-        const vals = row.trim().split(/[\t,;]+| +/).map(v => parseFloat(v));
-        // Check if row has valid numbers
-        if (vals.some(isNaN)) return null; 
-        matrix.push(vals);
+        const tokens = row.trim().split(/[\t,;]+| +/);
+        
+        const rowVals: number[] = [];
+        for (const token of tokens) {
+             const cleanToken = token.trim();
+             if (!cleanToken) continue;
+             
+             let val = parseFloat(cleanToken);
+             if (isNaN(val)) return null; 
+             
+             rowVals.push(val);
+        }
+
+        if (rowVals.length > 0) {
+            matrix.push(rowVals);
+        }
     }
     
     if (matrix.length === 0) return null;

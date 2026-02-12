@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import {  Wand2, Info, AlertCircle, FileText, BarChart2, PieChart, Sigma, Plus, Trash2, List, Grid, Copy, Check } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
@@ -148,10 +147,10 @@ const DescriptiveView: React.FC = () => {
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 animate-in fade-in duration-500">
             {/* INPUT COL */}
-            <div className="lg:col-span-4 xl:col-span-3 space-y-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
+            <div className="md:col-span-4 xl:col-span-3 space-y-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 md:sticky md:top-24 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
                     <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200 mb-6">
                         <button onClick={() => setInputType('continuous')} className={`flex-1 py-1.5 text-xs font-medium rounded-md flex justify-center items-center gap-2 transition-all ${inputType === 'continuous' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}><Sigma className="w-3 h-3" /> Scale</button>
                         <button onClick={() => setInputType('categorical')} className={`flex-1 py-1.5 text-xs font-medium rounded-md flex justify-center items-center gap-2 transition-all ${inputType === 'categorical' ? 'bg-white text-pink-600 shadow-sm' : 'text-slate-500'}`}><PieChart className="w-3 h-3" /> Nominal</button>
@@ -203,7 +202,7 @@ const DescriptiveView: React.FC = () => {
             </div>
 
             {/* RESULTS COL */}
-            <div className="lg:col-span-8 xl:col-span-9 space-y-6">
+            <div className="md:col-span-8 xl:col-span-9 space-y-6">
                 <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
                     <h2 className="text-lg font-semibold mb-8 flex items-center gap-2">
                         {inputType === 'continuous' ? <Sigma className="w-5 h-5 text-blue-500" /> : <BarChart2 className="w-5 h-5 text-pink-500" />} 

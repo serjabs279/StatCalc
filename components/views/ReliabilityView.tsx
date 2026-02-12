@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { ShieldCheck, Info, AlertCircle, Wand2, FileText, Check, Copy, ArrowUpRight, ArrowRightLeft, Settings2 } from 'lucide-react';
+import { ShieldCheck, Info, AlertCircle, Wand2, FileText, Check, Copy, ArrowUpRight, ArrowRightLeft } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { ReliabilityResult, AnalysisState } from '../../types';
 import { parseMatrixData, calculateCronbachAlpha } from '../../utils/statistics';
@@ -27,10 +27,10 @@ const SAMPLE_REVERSE = `2	2
 
 const ReliabilityView: React.FC = () => {
     // Input State
+    const [scaleName, setScaleName] = useState<string>("Interpretation");
     const [inputData, setInputData] = useState<string>("");
     const [reverseInputData, setReverseInputData] = useState<string>("");
-    const [scalePoints, setScalePoints] = useState<5 | 7>(5);
-
+    
     // Analysis State
     const [result, setResult] = useState<ReliabilityResult | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -62,6 +62,7 @@ const ReliabilityView: React.FC = () => {
         setCopiedMap({});
         setResult(null);
 
+        // Simple parsing without Likert config
         const matrixA = parseMatrixData(inputData);
         const matrixB = parseMatrixData(reverseInputData);
 
@@ -73,6 +74,13 @@ const ReliabilityView: React.FC = () => {
         let finalMatrix: number[][] = [];
         let itemNames: string[] = [];
 
+        // Assume standard 5-point scale for reverse calculation if not specified, 
+        // or just simple reverse (max+1 - val).
+        // Since we removed the config, we will default to 5-point scale reversal for simplicity in this reverted version,
+        // or just expect the user to manually reverse.
+        // However, the original code had a default. Let's assume 5-point for now to keep it working reasonably.
+        const points = 5;
+
         // Logic to merge and reverse
         if (matrixA && matrixB) {
             // Check row consistency
@@ -82,7 +90,7 @@ const ReliabilityView: React.FC = () => {
             }
 
             // Reverse Matrix B
-            const reversedB = matrixB.map(row => row.map(val => (scalePoints + 1) - val));
+            const reversedB = matrixB.map(row => row.map(val => (points + 1) - val));
             
             // Merge A + B
             finalMatrix = matrixA.map((row, i) => [...row, ...reversedB[i]]);
@@ -100,7 +108,7 @@ const ReliabilityView: React.FC = () => {
             // Default naming
         } else if (matrixB) {
             // Only reverse items
-            finalMatrix = matrixB.map(row => row.map(val => (scalePoints + 1) - val));
+            finalMatrix = matrixB.map(row => row.map(val => (points + 1) - val));
             itemNames = Array.from({length: matrixB[0].length}, (_, i) => `RevItem ${i + 1} (R)`);
         }
 
@@ -109,7 +117,7 @@ const ReliabilityView: React.FC = () => {
              return;
         }
 
-        const reliability = calculateCronbachAlpha(finalMatrix, itemNames.length > 0 ? itemNames : undefined);
+        const reliability = calculateCronbachAlpha(finalMatrix, itemNames);
         if (!reliability) {
              setError("Calculation failed due to variance issues (e.g., constant columns). Check your data.");
              return;
@@ -122,7 +130,7 @@ const ReliabilityView: React.FC = () => {
         setAiAnalysis({ isLoading: true, result: null, error: null });
         setTimeout(() => aiSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
         try {
-            const analysis = await analyzeReliability(result);
+            const analysis = await analyzeReliability(result, scaleName);
             setAiAnalysis({ isLoading: false, result: analysis, error: null });
         } catch (e) {
             setAiAnalysis({ isLoading: false, result: null, error: "Failed to generate AI analysis." });
@@ -132,13 +140,13 @@ const ReliabilityView: React.FC = () => {
     const loadExample = () => {
         setInputData(SAMPLE_STANDARD);
         setReverseInputData(SAMPLE_REVERSE);
+        setScaleName("Job Satisfaction Scale");
         setTimeout(() => document.getElementById('run-reliability')?.click(), 100);
     };
 
     const formatSPSS = (num: number) => {
         const fixed = num.toFixed(3);
         if (num > -1 && num < 1) {
-             // Remove leading zero for decimals like 0.839 -> .839
              return fixed.replace(/^0+/, '').replace(/^-0+/, '-');
         }
         return fixed;
@@ -156,14 +164,14 @@ const ReliabilityView: React.FC = () => {
     const generateAPA = () => {
         if (!result) return "";
         const interp = getInterpretation(result.alpha);
-        return `The internal consistency of the ${result.nItems}-item scale was assessed using Cronbach's alpha. The analysis revealed a reliability coefficient of α = ${formatSPSS(result.alpha)}, indicating ${interp} reliability.`;
+        return `The internal consistency of the ${scaleName} (${result.nItems} items) was assessed using Cronbach's alpha. The analysis revealed a reliability coefficient of α = ${formatSPSS(result.alpha)}, indicating ${interp} reliability.`;
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-8 animate-in fade-in duration-500">
             {/* INPUT COL */}
-            <div className="lg:col-span-4 xl:col-span-3 space-y-6">
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
+            <div className="md:col-span-4 xl:col-span-3 space-y-6">
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 md:sticky md:top-24 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
                      <div className="mb-4 pb-4 border-b border-slate-100">
                         <h3 className="font-semibold text-slate-700 mb-1">Data Input Strategy</h3>
                         <p className="text-xs text-slate-500 leading-relaxed">
@@ -171,12 +179,19 @@ const ReliabilityView: React.FC = () => {
                         </p>
                      </div>
 
+                     <div className="mb-4">
+                        <label className="text-sm font-medium text-slate-700 block mb-1">Interpretation</label>
+                        <input value={scaleName} onChange={e => setScaleName(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900" placeholder="e.g. Job Satisfaction" />
+                     </div>
+
                      {/* STANDARD ITEMS */}
                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700 uppercase flex justify-between">
-                            <span>Standard Items</span>
-                            <span className="text-slate-400 font-normal">e.g. Part 1, 3</span>
-                        </label>
+                        <div className="flex justify-between items-center">
+                             <label className="text-xs font-bold text-slate-700 uppercase flex flex-col">
+                                <span>Standard Items</span>
+                                <span className="text-[10px] text-slate-400 font-normal normal-case">e.g. Part 1, 3</span>
+                            </label>
+                        </div>
                         <textarea 
                             value={inputData} 
                             onChange={e => setInputData(e.target.value)} 
@@ -190,12 +205,8 @@ const ReliabilityView: React.FC = () => {
                         <div className="flex justify-between items-center">
                              <label className="text-xs font-bold text-slate-700 uppercase flex flex-col">
                                 <span>Reverse Items</span>
-                                <span className="text-[10px] text-slate-400 font-normal normal-case">Scores will be flipped</span>
+                                <span className="text-[10px] text-slate-400 font-normal normal-case">Scores will be flipped (Default 5-pt)</span>
                             </label>
-                            <div className="flex bg-slate-100 rounded-md p-0.5 border border-slate-200">
-                                <button onClick={() => setScalePoints(5)} className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${scalePoints === 5 ? 'bg-white text-cyan-700 shadow-sm' : 'text-slate-500'}`}>5-Pt</button>
-                                <button onClick={() => setScalePoints(7)} className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${scalePoints === 7 ? 'bg-white text-cyan-700 shadow-sm' : 'text-slate-500'}`}>7-Pt</button>
-                            </div>
                         </div>
                         <textarea 
                             value={reverseInputData} 
@@ -225,7 +236,7 @@ const ReliabilityView: React.FC = () => {
             </div>
 
              {/* RESULTS COL */}
-             <div className="lg:col-span-8 xl:col-span-9 space-y-6">
+             <div className="md:col-span-8 xl:col-span-9 space-y-6">
                 <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
                     <h2 className="text-lg font-semibold mb-8 flex items-center gap-2">
                         <ShieldCheck className="w-5 h-5 text-cyan-500" /> 
@@ -406,7 +417,7 @@ const ReliabilityView: React.FC = () => {
                 <div ref={aiSectionRef} className="bg-gradient-to-br from-slate-50 to-cyan-50/30 p-8 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden scroll-mt-24">
                     <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Wand2 className="w-48 h-48 text-cyan-500" /></div>
                     <div className="relative z-10">
-                        <h2 className="text-xl font-semibold flex items-center gap-2 mb-4 text-slate-900"><Wand2 className="w-6 h-6 text-cyan-600" /> AI Interpretation</h2>
+                        <h2 className="text-xl font-semibold flex items-center gap-2 mb-4 text-slate-900"><Wand2 className="w-6 h-6 text-cyan-600" /> Interpretation</h2>
                         {aiAnalysis.result ? (
                             <div className="prose prose-slate bg-white p-6 rounded-lg border border-slate-200 max-w-none text-sm shadow-sm">
                                 <ReactMarkdown>{aiAnalysis.result}</ReactMarkdown>

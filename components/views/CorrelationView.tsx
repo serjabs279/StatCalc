@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { TrendingUp, Info, Wand2, RefreshCcw, AlertCircle, Layers, ArrowRightLeft, Scale, Settings2, Trash2, Plus, Box } from 'lucide-react';
+import { TrendingUp, Wand2, RefreshCcw, Settings2, Trash2, Plus, Box, ArrowRight, Grid3X3, Layers, Activity } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import CorrelationHeatmap from '../CorrelationHeatmap';
 import StatisticalTable from '../StatisticalTable';
@@ -107,7 +106,7 @@ const CorrelationView: React.FC = () => {
     setLikertY(p => ({ ...p, enabled: false }));
     if (mode === 'simple') { setInputX(SAMPLE_X); setInputY(SAMPLE_Y); setLabelX("Variable X"); setLabelY("Variable Y"); }
     else { setConstructName("Job Satisfaction"); setInputY("8, 7, 9, 6, 8, 9, 5, 4, 8, 6"); setDimensions([{ id: '1', name: "Pay Satisfaction", value: "7, 6, 8, 5, 7, 8, 4, 3, 7, 5" }, { id: '2', name: "Work-Life Balance", value: "9, 8, 9, 7, 8, 9, 6, 5, 9, 7" }, { id: '3', name: "Management Trust", value: "5, 4, 6, 3, 5, 6, 2, 2, 5, 4" }]); }
-    setTimeout(() => document.getElementById('update-btn')?.click(), 100);
+    setTimeout(() => document.getElementById('run-btn')?.click(), 100);
   };
 
   const renderLikertConfig = (axis: 'x' | 'y') => {
@@ -117,16 +116,15 @@ const CorrelationView: React.FC = () => {
       <div className="mt-3 p-4 bg-slate-50 border border-slate-200 rounded-lg animate-in fade-in slide-in-from-top-2 duration-200">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-             <span className="text-xs font-semibold text-slate-500 uppercase">Scale</span>
-             <div className="flex bg-white rounded-md shadow-sm border border-slate-200">
-                <button onClick={() => updateLikertConfig(axis, 'points', 5)} className={`px-2 py-1 text-xs ${config.points === 5 ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600'}`}>5-Pt</button>
-                <div className="w-px bg-slate-200"></div>
-                <button onClick={() => updateLikertConfig(axis, 'points', 7)} className={`px-2 py-1 text-xs ${config.points === 7 ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600'}`}>7-Pt</button>
+             <span className="text-xs font-semibold text-slate-500 uppercase">Scale Points</span>
+             <div className="flex bg-white rounded-md shadow-sm border border-slate-200 p-0.5">
+                <button onClick={() => updateLikertConfig(axis, 'points', 5)} className={`px-2 py-0.5 text-[10px] font-medium rounded ${config.points === 5 ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600'}`}>5-Pt</button>
+                <button onClick={() => updateLikertConfig(axis, 'points', 7)} className={`px-2 py-0.5 text-[10px] font-medium rounded ${config.points === 7 ? 'bg-indigo-50 text-indigo-700' : 'text-slate-600'}`}>7-Pt</button>
              </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2">
             {config.labels.map((l, i) => (
-                <div key={i} className="flex gap-2 items-center"><span className="text-xs w-4 text-right text-slate-400">{config.isReversed ? config.points - i : i + 1}</span><input value={l} onChange={(e) => updateLikertLabel(axis, i, e.target.value)} className="w-full text-xs border border-slate-200 bg-white rounded px-2 py-1 text-slate-900" /></div>
+                <div key={i} className="flex gap-2 items-center"><span className="text-[10px] w-3 text-right text-slate-400">{config.isReversed ? config.points - i : i + 1}</span><input value={l} onChange={(e) => updateLikertLabel(axis, i, e.target.value)} className="w-full text-xs border border-slate-200 bg-white rounded px-2 py-1 text-slate-900" /></div>
             ))}
           </div>
         </div>
@@ -134,105 +132,225 @@ const CorrelationView: React.FC = () => {
     );
   };
 
+  const getInterpretationText = (r: number) => {
+      const abs = Math.abs(r);
+      if (abs > 0.8) return "Very Strong";
+      if (abs > 0.6) return "Strong";
+      if (abs > 0.4) return "Moderate";
+      if (abs > 0.2) return "Weak";
+      return "Negligible";
+  }
+
+  const getInterpretationColor = (r: number) => {
+      const abs = Math.abs(r);
+      if (abs > 0.6) return "text-indigo-700";
+      if (abs > 0.4) return "text-purple-600";
+      return "text-slate-600";
+  }
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500">
-        <div className="lg:col-span-4 xl:col-span-3 space-y-6">
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 sticky top-24 max-h-[calc(100vh-8rem)] overflow-y-auto custom-scrollbar">
-                <div className="flex items-center gap-4 mb-6">
-                    <div className="bg-slate-100 p-1 rounded-lg flex border border-slate-200 flex-1">
-                        <button onClick={() => setMode('simple')} className={`flex-1 py-1.5 text-xs font-medium rounded-md flex justify-center items-center gap-2 ${mode === 'simple' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}><ArrowRightLeft className="w-3 h-3" /> Simple</button>
-                        <button onClick={() => setMode('hybrid')} className={`flex-1 py-1.5 text-xs font-medium rounded-md flex justify-center items-center gap-2 ${mode === 'hybrid' ? 'bg-white text-purple-600 shadow-sm' : 'text-slate-500'}`}><Layers className="w-3 h-3" /> Hybrid</button>
-                    </div>
-                    <button onClick={loadExample} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors" title="Load Example"><RefreshCcw className="w-4 h-4" /></button>
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 animate-in fade-in duration-500 font-sans">
+        
+        {/* INPUT COLUMN */}
+        <div className="lg:col-span-4 xl:col-span-3">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 sticky top-24">
+                
+                {/* Toggles */}
+                <div className="bg-slate-100 p-1 rounded-lg flex mb-4">
+                    <button onClick={() => setMode('simple')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${mode === 'simple' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <ArrowRight className={`w-3 h-3 inline mr-1 ${mode === 'simple' ? 'block' : 'hidden'}`} />Simple
+                    </button>
+                    <button onClick={() => setMode('hybrid')} className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all ${mode === 'hybrid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                        <Layers className={`w-3 h-3 inline mr-1 ${mode === 'hybrid' ? 'block' : 'hidden'}`} />Hybrid
+                    </button>
                 </div>
 
-                <div className="mb-6 bg-slate-50 p-1 rounded-lg flex border border-slate-200">
-                    <button onClick={() => setTestType('pearson')} className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${testType === 'pearson' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Pearson</button>
-                    <button onClick={() => setTestType('spearman')} className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all ${testType === 'spearman' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500'}`}>Spearman</button>
+                <div className="flex items-center gap-2 mb-6 border-b border-slate-100 pb-4">
+                     <button onClick={() => setTestType('pearson')} className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${testType === 'pearson' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Pearson</button>
+                     <button onClick={() => setTestType('spearman')} className={`flex-1 py-2 text-sm font-medium border-b-2 transition-colors ${testType === 'spearman' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>Spearman</button>
                 </div>
 
+                {/* Input Fields */}
                 <div className="space-y-6">
-                    <div className="relative">
-                        <div className="flex justify-between mb-2"><label className="text-sm font-medium text-slate-700">{mode === 'simple' ? "Variable X" : "IV (Construct)"}</label><button onClick={() => updateLikertConfig('x', 'enabled', !likertX.enabled)} className={`text-xs px-2 py-0.5 rounded-full ${likertX.enabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}><Settings2 className="w-3 h-3" /> Likert</button></div>
+                    {/* Var X Input */}
+                    <div>
+                        <div className="flex justify-between items-center mb-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase">{mode === 'simple' ? 'Variable X' : 'Dimensions (IV)'}</label>
+                             <button onClick={() => updateLikertConfig('x', 'enabled', !likertX.enabled)} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-colors ${likertX.enabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                <Settings2 className="w-3 h-3" /> Likert
+                             </button>
+                        </div>
                         {mode === 'simple' ? (
-                            <><input value={labelX} onChange={e => setLabelX(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg mb-2 text-sm text-slate-900" /><textarea value={inputX} onChange={e => setInputX(e.target.value)} className="w-full h-24 px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-sm resize-none text-slate-900" /></>
+                            <>
+                                <input value={labelX} onChange={e => setLabelX(e.target.value)} className="w-full text-sm px-3 py-2 bg-white border border-slate-200 rounded-lg mb-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 outline-none text-slate-700 font-medium placeholder-slate-400" placeholder="Label (e.g. Height)" />
+                                <textarea value={inputX} onChange={e => setInputX(e.target.value)} className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-600 focus:ring-2 focus:ring-indigo-100 outline-none resize-none placeholder:text-slate-400" placeholder="10, 20, 30..." />
+                            </>
                         ) : (
-                            <div className="space-y-4"><input value={constructName} onChange={e => setConstructName(e.target.value)} className="w-full px-3 py-2 bg-indigo-50 border-indigo-200 rounded-lg text-sm font-medium text-indigo-900" /><div className="space-y-3 pl-3 border-l-2 border-slate-100">{dimensions.map((d, i) => (<div key={d.id} className="group"><div className="flex justify-between mb-1"><input value={d.name} onChange={e => updateDimension(d.id, 'name', e.target.value)} className="bg-transparent text-xs font-medium text-slate-700" />{dimensions.length > 1 && <button onClick={() => removeDimension(d.id)}><Trash2 className="w-3 h-3 text-slate-300 hover:text-red-500" /></button>}</div><textarea value={d.value} onChange={e => updateDimension(d.id, 'value', e.target.value)} className="w-full h-16 px-2 py-1.5 bg-white border border-slate-200 rounded font-mono text-xs resize-none text-slate-900" /></div>))}<button onClick={addDimension} className="w-full py-2 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded flex justify-center items-center gap-1"><Plus className="w-3 h-3" /> Add Dimension</button></div></div>
+                            <div className="space-y-3">
+                                <input value={constructName} onChange={e => setConstructName(e.target.value)} className="w-full px-3 py-2 bg-indigo-50 border-indigo-200 rounded-lg text-xs font-bold text-indigo-900" placeholder="Construct Name" />
+                                <div className="space-y-3 pl-2 border-l-2 border-slate-100">
+                                    {dimensions.map((d) => (
+                                        <div key={d.id} className="group relative">
+                                            <input value={d.name} onChange={e => updateDimension(d.id, 'name', e.target.value)} className="w-full bg-transparent text-xs font-medium text-slate-700 mb-1 border-none p-0 focus:ring-0" placeholder="Dimension Name" />
+                                            <textarea value={d.value} onChange={e => updateDimension(d.id, 'value', e.target.value)} className="w-full h-16 p-2 bg-white border border-slate-200 rounded-lg font-mono text-xs resize-none text-slate-600 focus:ring-1 focus:ring-indigo-200" placeholder="Data..." />
+                                            {dimensions.length > 1 && <button onClick={() => removeDimension(d.id)} className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-500 transition-opacity"><Trash2 className="w-3 h-3" /></button>}
+                                        </div>
+                                    ))}
+                                    <button onClick={addDimension} className="w-full py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded flex justify-center items-center gap-1 hover:bg-indigo-100 transition-colors"><Plus className="w-3 h-3" /> Add Dimension</button>
+                                </div>
+                            </div>
                         )}
                         {renderLikertConfig('x')}
                     </div>
-                    <div className="border-t border-slate-100"></div>
-                    <div className="relative">
-                        <div className="flex justify-between mb-2"><label className="text-sm font-medium text-slate-700">{mode === 'simple' ? "Variable Y" : "Dependent Variable"}</label><button onClick={() => updateLikertConfig('y', 'enabled', !likertY.enabled)} className={`text-xs px-2 py-0.5 rounded-full ${likertY.enabled ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500'}`}><Settings2 className="w-3 h-3" /> Likert</button></div>
-                        <input value={labelY} onChange={e => setLabelY(e.target.value)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg mb-2 text-sm text-slate-900" /><textarea value={inputY} onChange={e => setInputY(e.target.value)} className="w-full h-24 px-3 py-2 bg-white border border-slate-200 rounded-lg font-mono text-sm resize-none text-slate-900" />
+
+                    {/* Var Y Input */}
+                    <div>
+                         <div className="flex justify-between items-center mb-2">
+                             <label className="text-xs font-bold text-slate-500 uppercase">{mode === 'simple' ? 'Variable Y' : 'Dependent Variable'}</label>
+                             <button onClick={() => updateLikertConfig('y', 'enabled', !likertY.enabled)} className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] transition-colors ${likertY.enabled ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-400'}`}>
+                                <Settings2 className="w-3 h-3" /> Likert
+                             </button>
+                        </div>
+                        <input value={labelY} onChange={e => setLabelY(e.target.value)} className="w-full text-sm px-3 py-2 bg-white border border-slate-200 rounded-lg mb-2 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-200 outline-none text-slate-700 font-medium placeholder-slate-400" placeholder="Label (e.g. Weight)" />
+                        <textarea value={inputY} onChange={e => setInputY(e.target.value)} className="w-full h-24 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-mono text-slate-600 focus:ring-2 focus:ring-indigo-100 outline-none resize-none placeholder:text-slate-400" placeholder="10, 20, 30..." />
                         {renderLikertConfig('y')}
                     </div>
-                    <button id="update-btn" onClick={handleCalculate} className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transition-all">Run Analysis</button>
-                    {error && <div className="p-3 bg-amber-50 text-amber-700 text-sm rounded-lg flex items-start gap-2 border border-amber-200"><AlertCircle className="w-4 h-4 mt-0.5" />{error}</div>}
+                </div>
+
+                {/* Footer Actions */}
+                <div className="mt-8 pt-4 border-t border-slate-100">
+                    <button id="run-btn" onClick={handleCalculate} className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200/50 transition-all flex items-center justify-center gap-2">
+                        Run Analysis
+                    </button>
+                    {error && <div className="mt-4 p-3 bg-red-50 text-red-600 text-xs rounded-lg border border-red-100 flex items-start gap-2"><div className="mt-0.5"><Trash2 className="w-3 h-3"/></div>{error}</div>}
+                    <button onClick={loadExample} className="w-full mt-3 py-2 text-xs font-medium text-slate-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-1">
+                        <RefreshCcw className="w-3 h-3" /> Load Example Data
+                    </button>
                 </div>
             </div>
         </div>
 
+        {/* RESULTS COLUMN */}
         <div className="lg:col-span-8 xl:col-span-9 space-y-6">
-            {mode === 'simple' && (
-                <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200">
-                    <h2 className="text-lg font-semibold mb-8 flex items-center gap-2"><TrendingUp className="w-5 h-5 text-indigo-500" /> Statistical Results <span className="text-slate-400 font-normal ml-2 text-sm">| {testType === 'pearson' ? 'Pearson' : 'Spearman'}</span></h2>
-                    {stats ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
-                            <div className="md:col-span-2 xl:col-span-4 flex justify-between items-center pb-6 border-b border-slate-100 mb-2">
-                                <div className="flex items-center gap-8"><div className="w-32 h-32 rounded-full bg-indigo-50 flex items-center justify-center ring-8 ring-indigo-50/50"><span className="text-4xl font-bold text-indigo-700">{(testType === 'pearson' ? stats.r : stats.spearmanRho).toFixed(3)}</span></div><div><h3 className="text-sm font-semibold text-slate-500 uppercase">Coefficient</h3><div className="text-4xl font-bold text-slate-800">{Math.abs(testType === 'pearson' ? stats.r : stats.spearmanRho) > 0.5 ? "Strong" : "Weak"}</div><p className="text-slate-500">Correlation</p></div></div>
-                                <button onClick={handleAIAnalysis} disabled={aiAnalysis.isLoading} className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg flex gap-2 disabled:opacity-70"><Wand2 className="w-5 h-5" /> Analyze</button>
-                            </div>
-                            <div className="bg-slate-50 p-6 rounded-xl border border-slate-100"><h4 className="text-xs font-bold text-slate-400 uppercase mb-3">Sample Size (n)</h4><div className="text-3xl font-medium text-slate-700">{stats.n}</div></div>
-                            <div className="bg-slate-50 p-6 rounded-xl border border-slate-100"><h4 className="text-xs font-bold text-slate-400 uppercase mb-3">P-Value</h4><div className="text-3xl font-medium text-slate-700">{stats.pValue < 0.0001 ? "< .0001" : stats.pValue.toFixed(4)}</div><div className={`text-sm mt-1 font-bold ${stats.pValue < 0.05 ? 'text-emerald-600' : 'text-amber-600'}`}>{stats.pValue < 0.05 ? 'Significant' : 'Not Sig.'}</div></div>
-                            <div className="md:col-span-2 row-span-2"><CorrelationHeatmap stats={stats} labelX={labelX} labelY={labelY} testType={testType} /></div>
-                            <div className="md:col-span-2 xl:col-span-4"><StatisticalTable mode={mode} testType={testType} stats={stats} labelX={labelX} labelY={labelY} /></div>
-                        </div>
-                    ) : (
-                        <div className="h-64 flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-300"><Info className="w-10 h-10 mb-3 opacity-50" /><p className="text-lg font-medium">Enter data to see results</p></div>
-                    )}
-                </div>
-            )}
-
-            {mode === 'hybrid' && hybridResult && (
-                <div className="space-y-6">
-                    <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-1 h-full bg-indigo-600"></div>
-                        <h2 className="text-lg font-bold mb-6 flex items-center gap-2 text-indigo-900"><Box className="w-5 h-5 text-indigo-600" /> Macro-Analysis (Composite)</h2>
-                        <div className="flex flex-col md:flex-row items-center gap-8 mb-8">
-                            <div className="flex-1"><div className="text-sm text-slate-500 uppercase font-semibold mb-1">Global Construct</div><div className="text-2xl font-bold text-slate-900 mb-2">{hybridResult.composite.name}</div><div className="flex items-center gap-2 text-sm"><span className={`px-2 py-0.5 rounded font-bold ${hybridResult.composite.hypothesis.isSignificant ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{hybridResult.composite.hypothesis.decision}</span><span className="text-slate-400">vs {labelY}</span></div></div>
-                            <div className="flex gap-4"><div className="p-4 bg-indigo-50 rounded-lg border border-indigo-100 text-center min-w-[100px]"><div className="text-xs text-indigo-400 font-bold uppercase">Coefficient</div><div className="text-2xl font-bold text-indigo-700">{(testType === 'pearson' ? hybridResult.composite.stats.r : hybridResult.composite.stats.spearmanRho).toFixed(3)}</div></div><div className="p-4 bg-slate-50 rounded-lg border border-slate-200 text-center min-w-[100px]"><div className="text-xs text-slate-400 font-bold uppercase">P-Value</div><div className="text-2xl font-bold text-slate-700">{(testType === 'pearson' ? hybridResult.composite.stats.pValue : hybridResult.composite.stats.spearmanPValue).toFixed(3)}</div></div></div>
-                            <button onClick={handleAIAnalysis} disabled={aiAnalysis.isLoading} className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-xl shadow-lg flex items-center gap-2 disabled:opacity-70"><Wand2 className="w-5 h-5" /> Analyze Strategy</button>
-                        </div>
-                        <div className="text-sm bg-slate-50 p-4 rounded-lg border border-slate-200 italic text-slate-600">"{hybridResult.composite.hypothesis.conclusion}"</div>
-                    </div>
-                    <div>
-                        <h2 className="text-lg font-bold mb-4 flex items-center gap-2 text-slate-700 px-2"><Layers className="w-5 h-5 text-slate-500" /> Micro-Analysis</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-8">
-                            {hybridResult.dimensions.map((dim) => {
-                                const val = testType === 'pearson' ? dim.stats.r : dim.stats.spearmanRho;
-                                const p = testType === 'pearson' ? dim.stats.pValue : dim.stats.spearmanPValue;
-                                return (<div key={dim.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm"><div className="flex justify-between items-start mb-4"><div className="font-bold text-slate-800">{dim.name}</div>{dim.hypothesis.isSignificant ? <div className="w-2 h-2 rounded-full bg-emerald-500"></div> : <div className="w-2 h-2 rounded-full bg-slate-300"></div>}</div><div className="flex items-end justify-between"><div><div className="text-xs text-slate-400 uppercase font-bold">Correlation</div><div className={`text-xl font-bold ${val > 0 ? 'text-indigo-600' : 'text-amber-600'}`}>{val.toFixed(3)}</div></div><div className="text-right"><div className="text-xs text-slate-400 uppercase font-bold">Sig.</div><div className="text-sm font-medium text-slate-600">p = {p.toFixed(3)}</div></div></div></div>)
-                            })}
-                        </div>
-                        <StatisticalTable mode={mode} testType={testType} hybridResult={hybridResult} labelY={labelY} />
-                    </div>
-                </div>
-            )}
-
-            {mode === 'hybrid' && !hybridResult && <div className="h-64 flex flex-col items-center justify-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-300"><Info className="w-10 h-10 mb-3 opacity-50" /><p className="text-lg font-medium">Enter dimensional data to run Hybrid Strategy</p></div>}
             
-            {mode === 'simple' && hypothesis && stats && (
-                <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200"><h2 className="text-lg font-semibold mb-6 flex items-center gap-2"><Scale className="w-5 h-5 text-indigo-500" /> Hypothesis Testing Report</h2><div className="grid grid-cols-1 md:grid-cols-2 gap-8"><div className="bg-slate-50 p-6 rounded-lg border border-slate-200"><h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Formal Hypotheses</h3><div className="space-y-3 font-mono text-sm"><div className="flex items-center gap-3"><span className="bg-white border border-slate-200 px-2 py-1 rounded text-slate-600 font-bold">H₀</span><span className="text-slate-800">{hypothesis.nullHypothesis}</span></div><div className="flex items-center gap-3"><span className="bg-white border border-slate-200 px-2 py-1 rounded text-slate-600 font-bold">H₁</span><span className="text-slate-800">{hypothesis.altHypothesis}</span></div></div></div><div className={`p-6 rounded-lg border flex flex-col justify-center ${hypothesis.isSignificant ? 'bg-emerald-50 border-emerald-100' : 'bg-amber-50 border-amber-100'}`}><h3 className={`text-xs font-bold uppercase tracking-wider mb-2 ${hypothesis.isSignificant ? 'text-emerald-600' : 'text-amber-600'}`}>Decision</h3><div className={`text-2xl font-bold mb-3 ${hypothesis.isSignificant ? 'text-emerald-700' : 'text-amber-700'}`}>{hypothesis.decision}</div><p className={`text-sm ${hypothesis.isSignificant ? 'text-emerald-800' : 'text-amber-800'}`}>{hypothesis.conclusion}</p></div></div></div>
-            )}
+            {(stats || hybridResult) ? (
+                 <>
+                    {/* Header */}
+                    <div className="flex items-center gap-2 mb-2">
+                        <Activity className="w-5 h-5 text-indigo-600" />
+                        <h2 className="text-lg font-bold text-slate-800">Statistical Results <span className="text-slate-400 font-normal ml-2">| {testType === 'pearson' ? 'Pearson' : 'Spearman'}</span></h2>
+                    </div>
 
-            <div ref={aiSectionRef} className="bg-gradient-to-br from-indigo-50 to-purple-50 p-8 rounded-xl shadow-sm border border-indigo-100 relative overflow-hidden scroll-mt-24">
-                <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none"><Wand2 className="w-48 h-48 text-indigo-500" /></div>
-                <div className="relative z-10"><div className="flex items-center justify-between mb-4"><h2 className="text-xl font-semibold flex items-center gap-2 text-indigo-900"><Wand2 className="w-6 h-6 text-indigo-600" /> AI Interpretation</h2></div>
-                    {((mode === 'simple' && !stats) || (mode === 'hybrid' && !hybridResult)) ? <p className="text-slate-500 text-sm italic">Generate statistics first to enable AI analysis.</p> : aiAnalysis.isLoading ? <div className="flex flex-col items-center justify-center py-12 text-indigo-600 animate-pulse"><div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4"></div><p className="text-base font-medium">Analyzing context...</p></div> : aiAnalysis.result ? <div className="prose prose-indigo bg-white/60 p-6 rounded-lg border border-indigo-100 max-w-none shadow-sm text-sm"><ReactMarkdown>{aiAnalysis.result}</ReactMarkdown></div> : <p className="text-slate-600 text-base max-w-2xl">Get a detailed interpretation of what this data means for your research.</p>}
-                    {aiAnalysis.error && <p className="text-red-500 text-sm mt-2">{aiAnalysis.error}</p>}
+                    {/* Hero Card */}
+                    <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-8 animate-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex flex-col sm:flex-row items-center gap-8 text-center sm:text-left">
+                            {/* Circle Chart */}
+                            <div className="relative w-36 h-36 shrink-0 flex items-center justify-center min-w-[9rem] min-h-[9rem]">
+                                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 144 144" preserveAspectRatio="xMidYMid meet">
+                                    <circle cx="72" cy="72" r="60" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-indigo-50" />
+                                    <circle 
+                                        cx="72" cy="72" r="60" 
+                                        stroke="currentColor" strokeWidth="8" fill="transparent" 
+                                        strokeDasharray={377} 
+                                        strokeDashoffset={377 - (377 * Math.abs(mode === 'simple' && stats ? stats.r : hybridResult!.composite.stats.r))} 
+                                        className="text-indigo-600 transition-all duration-1000 ease-out" 
+                                        strokeLinecap="round" 
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span className="text-4xl font-bold text-indigo-700 tracking-tighter">
+                                        {(mode === 'simple' && stats ? (testType === 'pearson' ? stats.r : stats.spearmanRho) : (testType === 'pearson' ? hybridResult!.composite.stats.r : hybridResult!.composite.stats.spearmanRho)).toFixed(3)}
+                                    </span>
+                                </div>
+                            </div>
+                            
+                            {/* Text Summary */}
+                            <div>
+                                <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Coefficient</div>
+                                <div className={`text-4xl font-bold mb-1 ${getInterpretationColor(mode === 'simple' && stats ? stats.r : hybridResult!.composite.stats.r)}`}>
+                                    {getInterpretationText(mode === 'simple' && stats ? stats.r : hybridResult!.composite.stats.r)}
+                                </div>
+                                <div className="text-slate-500 font-medium">Correlation</div>
+                            </div>
+                        </div>
+
+                        {/* Analyze Button */}
+                        <button 
+                            onClick={handleAIAnalysis} 
+                            disabled={aiAnalysis.isLoading} 
+                            className="px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all flex items-center gap-2 group disabled:opacity-70"
+                        >
+                            <Wand2 className="w-5 h-5 group-hover:rotate-12 transition-transform" /> 
+                            {aiAnalysis.isLoading ? 'Analyzing...' : 'Analyze'}
+                        </button>
+                    </div>
+
+                    {/* Secondary Metrics Grid */}
+                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                        <div className="grid grid-cols-2 gap-6">
+                            {/* Sample Size */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center animate-in slide-in-from-bottom-6 duration-500 delay-100">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-3">Sample Size (N)</div>
+                                <div className="text-4xl font-medium text-slate-700">{mode === 'simple' && stats ? stats.n : hybridResult!.composite.stats.n}</div>
+                            </div>
+                            {/* P-Value */}
+                            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center animate-in slide-in-from-bottom-6 duration-500 delay-150">
+                                <div className="text-xs font-bold text-slate-400 uppercase mb-3">P-Value</div>
+                                <div className="text-4xl font-medium text-slate-700">
+                                    {(mode === 'simple' && stats ? stats.pValue : hybridResult!.composite.stats.pValue).toFixed(4)}
+                                </div>
+                                <div className={`text-sm font-bold mt-2 ${(mode === 'simple' && stats ? stats.pValue : hybridResult!.composite.stats.pValue) < 0.05 ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                    {(mode === 'simple' && stats ? stats.pValue : hybridResult!.composite.stats.pValue) < 0.05 ? 'Significant' : 'Not Significant'}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Heatmap Area */}
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden animate-in slide-in-from-bottom-6 duration-500 delay-200">
+                            {mode === 'simple' && stats ? (
+                                <CorrelationHeatmap stats={stats} labelX={labelX} labelY={labelY} testType={testType} />
+                            ) : (
+                                <div className="p-6 h-full flex flex-col justify-center items-center text-center">
+                                    <Grid3X3 className="w-8 h-8 text-indigo-200 mb-2" />
+                                    <div className="text-sm font-medium text-slate-400">Heatmap available in Simple Mode</div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Detailed Analysis Section */}
+                    <div className="grid grid-cols-1 gap-6">
+                         <StatisticalTable mode={mode} testType={testType} stats={stats} hybridResult={hybridResult} labelX={labelX} labelY={labelY} />
+                         
+                         {/* AI Result Area */}
+                         <div ref={aiSectionRef} className="scroll-mt-24">
+                            {aiAnalysis.result && (
+                                <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-8 rounded-2xl shadow-sm border border-indigo-100 relative overflow-hidden animate-in fade-in duration-700">
+                                     <div className="absolute top-0 right-0 p-6 opacity-10 pointer-events-none"><Wand2 className="w-64 h-64 text-indigo-600" /></div>
+                                     <div className="relative z-10">
+                                        <h3 className="text-xl font-bold text-indigo-900 mb-6 flex items-center gap-2"><Wand2 className="w-6 h-6" /> AI Interpretation</h3>
+                                        <div className="prose prose-indigo bg-white/60 p-6 rounded-xl border border-indigo-50/50 max-w-none text-sm shadow-sm">
+                                            <ReactMarkdown>{aiAnalysis.result}</ReactMarkdown>
+                                        </div>
+                                     </div>
+                                </div>
+                            )}
+                            {aiAnalysis.error && (
+                                <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-100 text-sm">{aiAnalysis.error}</div>
+                            )}
+                         </div>
+                    </div>
+                 </>
+            ) : (
+                // EMPTY STATE
+                <div className="h-[600px] bg-slate-50 rounded-3xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
+                    <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4">
+                        <TrendingUp className="w-8 h-8 text-indigo-200" />
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-600 mb-2">Ready to Analyze</h3>
+                    <p className="max-w-md text-center text-slate-500">Enter your data in the sidebar and click "Run Analysis" to generate professional statistical reports.</p>
                 </div>
-            </div>
+            )}
         </div>
     </div>
   );
